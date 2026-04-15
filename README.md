@@ -23,7 +23,6 @@ $ echo "use analysis in stepi_01.out.md and try to build the project" | stepi  #
 
 ## Build
 
-
 Requires Go for building. Get the source from github.
 
 ```bash
@@ -34,3 +33,9 @@ go build
 
 Move the `stepi` binary to ~/.local/bin or equivalent or add to PATH.
 
+## Why
+
+* I wanted to see how it works on the inside (might integrate Ryelang into this)
+* With inputs and outputs in UI you are basically throwing information away, files stay there
+* It's easier to automate, integrate, extend the use - it's just files and pipes
+* it's more persistent and more and-adhoc at the same time, always there, just a linux command
