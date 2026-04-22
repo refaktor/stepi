@@ -10,6 +10,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/user/stepi/colors"
 	"github.com/user/stepi/logging"
 )
 
@@ -157,7 +158,7 @@ func Run(ctx context.Context, systemPrompt, userPrompt string, tools []Tool, cfg
 			switch ev := event.AsAny().(type) {
 			case anthropic.ContentBlockDeltaEvent:
 				if ev.Delta.Text != "" {
-					fmt.Fprint(os.Stderr, ev.Delta.Text)
+					fmt.Fprint(os.Stderr, colors.LLMText(ev.Delta.Text))
 					logger.StreamText(ev.Delta.Text) // Log the streaming text
 				}
 			}
@@ -195,7 +196,7 @@ func Run(ctx context.Context, systemPrompt, userPrompt string, tools []Tool, cfg
 
 		// Display running usage
 		costMsg := fmt.Sprintf("\n[%.4f$] ", totalUsage.Cost)
-		fmt.Fprint(os.Stderr, costMsg)
+		fmt.Fprint(os.Stderr, colors.Cost(costMsg))
 		logger.StreamText(costMsg)
 
 		// Log the response
@@ -377,7 +378,7 @@ func logToolExecution(toolName string, args map[string]any, logger *logging.Logg
 	default:
 		toolMsg = fmt.Sprintf("\n[%s]\n", toolName)
 	}
-	fmt.Fprint(os.Stderr, toolMsg)
+	fmt.Fprint(os.Stderr, colors.ToolCall(toolMsg))
 	logger.StreamText(toolMsg)
 }
 
@@ -547,7 +548,7 @@ func RunWithHistory(ctx context.Context, systemPrompt, userPrompt string, histor
 			switch ev := event.AsAny().(type) {
 			case anthropic.ContentBlockDeltaEvent:
 				if ev.Delta.Text != "" {
-					fmt.Fprint(os.Stderr, ev.Delta.Text)
+					fmt.Fprint(os.Stderr, colors.LLMText(ev.Delta.Text))
 					logger.StreamText(ev.Delta.Text) // Log the streaming text
 				}
 			}
@@ -585,7 +586,7 @@ func RunWithHistory(ctx context.Context, systemPrompt, userPrompt string, histor
 
 		// Display running usage
 		costMsg := fmt.Sprintf("\n[%.4f$] ", totalUsage.Cost)
-		fmt.Fprint(os.Stderr, costMsg)
+		fmt.Fprint(os.Stderr, colors.Cost(costMsg))
 		logger.StreamText(costMsg)
 
 		// Log the response

@@ -15,9 +15,11 @@ import (
 	"time"
 
 	"github.com/user/stepi/agent"
+	"github.com/user/stepi/colors"
 	"github.com/user/stepi/config"
 	"github.com/user/stepi/logging"
 	"github.com/user/stepi/prompt"
+	"github.com/user/stepi/providers"
 	"github.com/user/stepi/session"
 	"github.com/user/stepi/tools"
 )
@@ -41,11 +43,15 @@ func main() {
 		case "step":
 			handleStepCommand(os.Args[2:])
 			return
+		case "models":
+			providers.PrintProvidersInfo()
+			return
 		}
 	}
 
 	// Parse flags
 	model := flag.String("model", "", "Model ID (default: claude-sonnet-4-20250514)")
+	provider := flag.String("provider", "", "LLM provider: anthropic, openai (auto-detected from model if not specified)")
 	thinking := flag.String("thinking", "", "Thinking level: off, low, medium, high (default: off)")
 	fullcoms := flag.Bool("fullcoms", false, "Save full communication log to <output>.fullcoms.md")
 	sessionName := flag.String("session", "", "Use existing session for multi-turn conversation")
@@ -67,11 +73,13 @@ Legacy Usage:
 
 Subcommands:
   stepi list                              # List stepi files with metadata
+  stepi models                            # Show available providers and models
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
 
 Options:
   --model <id>            Model ID (default: claude-sonnet-4-20250514)
+  --provider <name>       LLM provider: anthropic, openai (auto-detected if not specified)
   --thinking <level>      Thinking level: off, low, medium, high (default: off)
   --fullcoms              Save full communication log to <output>.fullcoms.md
                           (Not available in session or pipe mode)
@@ -81,14 +89,21 @@ Options:
   -h, --help              Show this help
 
 Environment Variables:
-  ANTHROPIC_API_KEY    Anthropic API key (required)
+  ANTHROPIC_API_KEY    Anthropic API key (required for Anthropic models)
+  OPENAI_API_KEY       OpenAI API key (required for OpenAI/Codex models)
   STEPI_MODEL          Default model
+  STEPI_PROVIDER       Default provider
   STEPI_THINKING       Default thinking level
+  OPENAI_TEMPERATURE   OpenAI temperature (0.0-2.0)
+  OPENAI_TOP_P         OpenAI top_p (0.0-1.0)
 
 Examples:
   stepi prompt.md                        # Auto-generates prompt.out.md
   stepi stepi_some_01.md                 # Auto-generates stepi_some_01.out.md
   stepi --model claude-3-5-haiku-20241022 input.md
+  stepi --model gpt-4 input.md           # Use OpenAI GPT-4
+  stepi --model code-davinci-002 input.md # Use OpenAI Codex
+  stepi --provider openai --model gpt-3.5-turbo input.md
   stepi --thinking high complex-task.md
   stepi --fullcoms task.md               # Also saves task.out.fullcoms.md
   echo "What is 2+2?" | stepi            # Pipe mode
@@ -122,17 +137,38 @@ Session examples:
 
 	// Handle session-start
 	if *sessionStart != "" {
-		cfg := config.FromEnv()
+		// Load provider config for session creation
+		sessionCfg := config.FromEnvProvider()
 		if *model != "" {
-			cfg.Model = *model
+			sessionCfg.Model = *model
+			if *provider == "" {
+				sessionCfg.Provider = providers.GetProviderForModel(*model)
+			}
 		}
-		cwd, _ := os.Getwd()
-		systemPrompt := prompt.Build(cwd)
-		if err := session.Create(*sessionStart, systemPrompt, cfg.Model); err != nil {
+		if *provider != "" {
+			sessionCfg.Provider = *provider
+		}
+		
+		// Validate provider and model
+		sessionProvider, err := providers.NewProvider(sessionCfg)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "Session '%s' started (model: %s)\n", *sessionStart, cfg.Model)
+		if !sessionProvider.ValidateModel(sessionCfg.Model) {
+			fmt.Fprintf(os.Stderr, "Error: model '%s' is not supported by provider '%s'\n", 
+				sessionCfg.Model, sessionProvider.Name())
+			os.Exit(1)
+		}
+		
+		cwd, _ := os.Getwd()
+		systemPrompt := prompt.Build(cwd)
+		if err := session.Create(*sessionStart, systemPrompt, sessionCfg.Model); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, "Session '%s' started (provider: %s, model: %s)\n", 
+			*sessionStart, sessionProvider.Name(), sessionCfg.Model)
 		os.Exit(0)
 	}
 
@@ -184,16 +220,44 @@ Session examples:
 		}
 	}
 
-	// Load config from env
-	cfg := config.FromEnv()
+	// Load provider config from env
+	providerCfg := config.FromEnvProvider()
 
 	// Override with flags
 	if *model != "" {
-		cfg.Model = *model
+		providerCfg.Model = *model
+		// Auto-detect provider from model if not explicitly set
+		if *provider == "" {
+			providerCfg.Provider = providers.GetProviderForModel(*model)
+		}
+	}
+	if *provider != "" {
+		providerCfg.Provider = *provider
 	}
 	if *thinking != "" {
-		cfg.Thinking = *thinking
+		providerCfg.Thinking = *thinking
 	}
+
+	// Create provider
+	llmProvider, err := providers.NewProvider(providerCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating provider: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Validate model
+	if !llmProvider.ValidateModel(providerCfg.Model) {
+		fmt.Fprintf(os.Stderr, "Error: model '%s' is not supported by provider '%s'\n", 
+			providerCfg.Model, llmProvider.Name())
+		fmt.Fprintf(os.Stderr, "Supported models for %s: %s\n", 
+			llmProvider.Name(), strings.Join(llmProvider.Models(), ", "))
+		os.Exit(1)
+	}
+
+	// Load legacy config for agent compatibility
+	cfg := config.FromEnv()
+	cfg.Model = providerCfg.Model
+	cfg.Thinking = providerCfg.Thinking
 	cfg.FullComs = *fullcoms && !pipeMode && !sessionMode // Disable fullcoms in pipe mode and session mode
 	cfg.CostTracking = !sessionMode // Enable cost tracking by default, but disable for session mode
 
@@ -202,17 +266,10 @@ Session examples:
 		cfg.LogFile = outputFile
 	}
 
-	// Check API key
-	if cfg.ApiKey == "" {
-		fmt.Fprintln(os.Stderr, "Error: ANTHROPIC_API_KEY environment variable is required")
-		os.Exit(1)
-	}
-
 
 
 	// Read input
 	var inputContent []byte
-	var err error
 	if pipeMode {
 		inputContent, err = io.ReadAll(os.Stdin)
 		if err != nil {
@@ -266,13 +323,15 @@ Session examples:
 
 	// Print info (only in file mode, not session+pipe)
 	if !pipeMode && !sessionMode {
-		fmt.Fprintf(os.Stderr, "Model: %s\n", cfg.Model)
-		fmt.Fprintf(os.Stderr, "Input: %s\n", inputFile)
-		fmt.Fprintf(os.Stderr, "Output: %s\n", outputFile)
-		fmt.Fprintln(os.Stderr, "---")
+		fmt.Fprintf(os.Stderr, colors.Info("Provider: %s\n"), llmProvider.Name())
+		fmt.Fprintf(os.Stderr, colors.Info("Model: %s\n"), cfg.Model)
+		fmt.Fprintf(os.Stderr, colors.Info("Input: %s\n"), inputFile)
+		fmt.Fprintf(os.Stderr, colors.Info("Output: %s\n"), outputFile)
+		fmt.Fprintln(os.Stderr, colors.Info("---"))
 	} else if sessionMode && !pipeMode {
-		fmt.Fprintf(os.Stderr, "Session: %s\n", *sessionName)
-		fmt.Fprintln(os.Stderr, "---")
+		fmt.Fprintf(os.Stderr, colors.Info("Session: %s\n"), *sessionName)
+		fmt.Fprintf(os.Stderr, colors.Info("Provider: %s\n"), llmProvider.Name())
+		fmt.Fprintln(os.Stderr, colors.Info("---"))
 	}
 
 	// Set up logger
@@ -323,8 +382,8 @@ Session examples:
 			}
 		}
 
-		// Use session's system prompt
-		result = agent.RunWithHistory(ctx, sess.SystemPrompt, inputStr, history, agentTools, cfg, logger)
+		// Use session's system prompt with the provider system
+		result = agent.RunWithProviderAndHistory(ctx, sess.SystemPrompt, inputStr, history, agentTools, llmProvider, cfg, logger)
 
 		// Save new messages to session
 		for _, msg := range result.NewMessages {
@@ -350,7 +409,7 @@ Session examples:
 			fmt.Fprintf(os.Stderr, "Warning: failed to save session: %v\n", err)
 		}
 	} else {
-		result = agent.Run(ctx, systemPrompt, inputStr, agentTools, cfg, logger)
+		result = agent.RunWithProvider(ctx, systemPrompt, inputStr, agentTools, llmProvider, cfg, logger)
 	}
 
 	if !pipeMode && !sessionMode {
@@ -358,7 +417,7 @@ Session examples:
 	}
 
 	if result.Error != nil {
-		fmt.Fprintf(os.Stderr, "Error: %v\n", result.Error)
+		fmt.Fprintf(os.Stderr, colors.Error("Error: %v\n"), result.Error)
 	}
 
 	// Write output
@@ -371,7 +430,7 @@ Session examples:
 			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Fprintf(os.Stderr, "Written to: %s\n", outputFile)
+		fmt.Fprintf(os.Stderr, colors.Success("Written to: %s\n"), outputFile)
 
 		// Write fullcoms if enabled
 		if *fullcoms && result.FullComs != "" {
@@ -386,8 +445,9 @@ Session examples:
 				fmt.Fprintf(os.Stderr, "Full communication log: %s\n", fullcomsFile)
 			}
 		}
-		fmt.Fprintf(os.Stderr, "Turns: %d | Tokens: %d in, %d out | Cost: $%.4f\n",
-			result.TotalTurns, result.Usage.InputTokens, result.Usage.OutputTokens, result.Usage.Cost)
+		fmt.Fprintf(os.Stderr, colors.Info("Turns: %d | Tokens: %d in, %d out | "), 
+			result.TotalTurns, result.Usage.InputTokens, result.Usage.OutputTokens)
+		fmt.Fprintf(os.Stderr, colors.Cost("Cost: $%.4f\n"), result.Usage.Cost)
 	}
 
 	if result.Error != nil {
