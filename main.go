@@ -24,6 +24,92 @@ import (
 	"github.com/user/stepi/tools"
 )
 
+// extractStepNumber extracts step number from filename like ".stepi/step04.md" or "something_04.md"
+func extractStepNumber(filename string) int {
+	// Remove extension
+	baseName := strings.TrimSuffix(filename, ".md")
+	
+	// Look for step pattern in .stepi/stepXX format
+	if strings.Contains(baseName, ".stepi/step") {
+		parts := strings.Split(baseName, "step")
+		if len(parts) > 1 {
+			stepStr := parts[len(parts)-1]
+			if stepNum := parseStepNumber(stepStr); stepNum > 0 {
+				return stepNum
+			}
+		}
+	}
+	
+	// Look for _XX pattern at end
+	parts := strings.Split(baseName, "_")
+	if len(parts) > 1 {
+		lastPart := parts[len(parts)-1]
+		if stepNum := parseStepNumber(lastPart); stepNum > 0 {
+			return stepNum
+		}
+	}
+	
+	return 0
+}
+
+// parseStepNumber parses a step number string like "04" or "4"
+func parseStepNumber(s string) int {
+	var num int
+	if n, err := fmt.Sscanf(s, "%d", &num); err == nil && n == 1 && num > 0 {
+		return num
+	}
+	return 0
+}
+
+// generateReadPrevPrefix generates the prefix instruction for reading previous step files
+func generateReadPrevPrefix(currentFile, nameFlag string) string {
+	var currentStep int
+	var stepDir string
+	
+	if currentFile == "<stdin>" && nameFlag != "" {
+		// Using pipe with --name flag
+		currentStep = extractStepNumber(nameFlag)
+		if strings.Contains(nameFlag, ".stepi/") {
+			stepDir = ".stepi/"
+		}
+	} else if currentFile != "<stdin>" {
+		// Using file input
+		currentStep = extractStepNumber(currentFile)
+		if strings.Contains(currentFile, ".stepi/") {
+			stepDir = ".stepi/"
+		}
+	}
+	
+	if currentStep <= 1 {
+		return "" // No previous step
+	}
+	
+	prevStep := currentStep - 1
+	prevStepStr := fmt.Sprintf("%02d", prevStep)
+	
+	var prefix string
+	if stepDir != "" {
+		// .stepi directory format
+		prefix = fmt.Sprintf("Read what was the goal previously in %sstep%s.md and what you did previously by looking at files %sstep%s.out.md and %sstep%s.log\n\n",
+			stepDir, prevStepStr, stepDir, prevStepStr, stepDir, prevStepStr)
+	} else {
+		// Generic format - extract base name pattern
+		var baseName string
+		if currentFile != "<stdin>" {
+			baseName = strings.TrimSuffix(currentFile, fmt.Sprintf("%02d.md", currentStep))
+		} else if nameFlag != "" {
+			baseName = strings.TrimSuffix(nameFlag, fmt.Sprintf("%02d", currentStep))
+		}
+		
+		if baseName != "" {
+			prefix = fmt.Sprintf("Read what was the goal previously in %s%s.md and what you did previously by looking at files %s%s.out.md and %s%s.log\n\n",
+				baseName, prevStepStr, baseName, prevStepStr, baseName, prevStepStr)
+		}
+	}
+	
+	return prefix
+}
+
 // isPiped returns true if stdin is piped (not a terminal)
 func isPiped() bool {
 	stat, _ := os.Stdin.Stat()
@@ -57,6 +143,8 @@ func main() {
 	sessionName := flag.String("session", "", "Use existing session for multi-turn conversation")
 	sessionStart := flag.String("session-start", "", "Start a new session with given name")
 	sessionEnd := flag.String("session-end", "", "End (delete) a session")
+	name := flag.String("name", "", "Name for file when using pipe input (creates <name>.md and generates <name>.out.md, etc.)")
+	readprev := flag.Bool("readprev", false, "Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md)")
 	help := flag.Bool("help", false, "Show help")
 	flag.BoolVar(help, "h", false, "Show help")
 
@@ -66,6 +154,7 @@ func main() {
 Primary Usage:
   stepi [options] <input.md>              # Auto-generates <input>.out.md
   echo "prompt" | stepi [options]         # Pipe mode (output to stdout)
+  echo "prompt" | stepi --name <name>     # Pipe mode (saves to <name>.md, generates <name>.out.md, etc.)
   stepi --session <name> [options]        # Multi-turn session mode
 
 Legacy Usage:
@@ -86,6 +175,8 @@ Options:
   --session <name>        Use existing session for multi-turn conversation
   --session-start <name>  Start a new session
   --session-end <name>    End (delete) a session
+  --name <name>           Name for file when using pipe input (creates <name>.md and auxiliary files)
+  --readprev              Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md and .stepi/stepXX.log)
   -h, --help              Show this help
 
 Environment Variables:
@@ -106,7 +197,8 @@ Examples:
   stepi --provider openai --model gpt-3.5-turbo input.md
   stepi --thinking high complex-task.md
   stepi --fullcoms task.md               # Also saves task.out.fullcoms.md
-  echo "What is 2+2?" | stepi            # Pipe mode
+  echo "What is 2+2?" | stepi            # Pipe mode (output to stdout)
+  echo "Analyze this code" | stepi --name analysis # Creates analysis.md, analysis.out.md, etc.
   stepi list                             # Show all stepi projects
 
 Session examples:
@@ -114,6 +206,14 @@ Session examples:
   echo "Read main.go" | stepi --session myproject
   echo "Explain it" | stepi --session myproject
   stepi --session-end myproject          # End session
+
+File naming (simplified):
+  Input: file.md generates:
+  - file.out.md     (main output)
+  - file.chatter    (LLM communication log)
+  - file.cmds       (tool commands log)
+  - file.log        (execution log)
+  - file.cost.csv   (cost tracking)
 
 `)
 	}
@@ -175,6 +275,17 @@ Session examples:
 	args := flag.Args()
 	pipeMode := isPiped()
 	sessionMode := *sessionName != ""
+	nameMode := *name != ""
+
+	// Validate name flag usage
+	if nameMode && !pipeMode {
+		fmt.Fprintln(os.Stderr, "Error: --name flag can only be used with pipe input (echo \"...\" | stepi --name somename)")
+		os.Exit(1)
+	}
+	if nameMode && sessionMode {
+		fmt.Fprintln(os.Stderr, "Error: --name flag cannot be used with session mode")
+		os.Exit(1)
+	}
 
 	var inputFile, outputFile string
 	if sessionMode && pipeMode {
@@ -194,8 +305,12 @@ Session examples:
 		} else {
 			outputFile = "<stdout>"
 		}
+	} else if pipeMode && nameMode {
+		// Pipe mode with name: read from stdin, save input as name.md, generate name.out.md
+		inputFile = "<stdin>"
+		outputFile = *name + ".out.md"
 	} else if pipeMode {
-		// Pipe mode: read from stdin, write to stdout
+		// Regular pipe mode: read from stdin, write to stdout
 		inputFile = "<stdin>"
 		outputFile = "<stdout>"
 	} else {
@@ -254,6 +369,22 @@ Session examples:
 		os.Exit(1)
 	}
 
+	// Set up logging if we have an output file (not pipe mode)
+	var logBaseName string
+	if !pipeMode && outputFile != "<stdout>" {
+		// Calculate base name for auxiliary files: file.out.md -> file
+		if strings.HasSuffix(outputFile, ".out.md") {
+			logBaseName = strings.TrimSuffix(outputFile, ".out.md")
+		} else if strings.HasSuffix(outputFile, ".md") {
+			logBaseName = strings.TrimSuffix(outputFile, ".md")
+		} else {
+			logBaseName = outputFile
+		}
+	} else if nameMode && pipeMode {
+		// For --name mode, use the name as base
+		logBaseName = *name
+	}
+
 	// Load legacy config for agent compatibility
 	cfg := config.FromEnv()
 	cfg.Model = providerCfg.Model
@@ -261,8 +392,10 @@ Session examples:
 	cfg.FullComs = *fullcoms && !pipeMode && !sessionMode // Disable fullcoms in pipe mode and session mode
 	cfg.CostTracking = !sessionMode // Enable cost tracking by default, but disable for session mode
 
-	// Set up logging if we have an output file (not pipe mode)
-	if !pipeMode && outputFile != "<stdout>" {
+	// Set up log file for cost tracking with simplified naming
+	if logBaseName != "" {
+		cfg.LogFile = logBaseName
+	} else if !pipeMode && outputFile != "<stdout>" {
 		cfg.LogFile = outputFile
 	}
 
@@ -289,6 +422,25 @@ Session examples:
 	if inputStr == "" {
 		fmt.Fprintln(os.Stderr, "Error: input is empty")
 		os.Exit(1)
+	}
+
+	// Apply readprev prefix if flag is set
+	if *readprev {
+		prefix := generateReadPrevPrefix(inputFile, *name)
+		if prefix != "" {
+			inputStr = prefix + inputStr
+		}
+	}
+
+	// Save input to file if using --name flag
+	if nameMode && pipeMode {
+		inputFileName := *name + ".md"
+		if err := os.WriteFile(inputFileName, inputContent, 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing input file %s: %v\n", inputFileName, err)
+			os.Exit(1)
+		}
+		// Update inputFile for logging purposes
+		inputFile = inputFileName
 	}
 
 	// Get working directory
@@ -336,9 +488,9 @@ Session examples:
 
 	// Set up logger
 	var logger *logging.Logger
-	if !pipeMode && outputFile != "<stdout>" {
+	if logBaseName != "" {
 		var err error
-		logger, err = logging.NewLogger(outputFile)
+		logger, err = logging.NewLogger(logBaseName)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Warning: failed to create logger: %v\n", err)
 			logger = &logging.Logger{} // No-op logger
@@ -434,9 +586,15 @@ Session examples:
 
 		// Write fullcoms if enabled
 		if *fullcoms && result.FullComs != "" {
-			// Generate fullcoms filename: output.md -> output.fullcoms.md
-			fullcomsFile := strings.TrimSuffix(outputFile, ".md") + ".fullcoms.md"
-			if !strings.HasSuffix(outputFile, ".md") {
+			// Generate fullcoms filename using simplified naming
+			var fullcomsFile string
+			if logBaseName != "" {
+				fullcomsFile = logBaseName + ".fullcoms.md"
+			} else if strings.HasSuffix(outputFile, ".out.md") {
+				fullcomsFile = strings.TrimSuffix(outputFile, ".out.md") + ".fullcoms.md"
+			} else if strings.HasSuffix(outputFile, ".md") {
+				fullcomsFile = strings.TrimSuffix(outputFile, ".md") + ".fullcoms.md"
+			} else {
 				fullcomsFile = outputFile + ".fullcoms.md"
 			}
 			if err := os.WriteFile(fullcomsFile, []byte(result.FullComs), 0644); err != nil {

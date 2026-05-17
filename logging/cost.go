@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 	"strconv"
-	"strings"
 	"time"
 )
 
@@ -21,12 +20,8 @@ func NewCostLogger(baseFilename string) (*CostLogger, error) {
 	// Extract base name for the cost file
 	var filename string
 	if baseFilename != "" && baseFilename != "<stdout>" && baseFilename != "<stdin>" {
-		// Remove .md extension if present and add .cost.csv
-		baseName := baseFilename
-		if strings.HasSuffix(baseName, ".md") {
-			baseName = strings.TrimSuffix(baseName, ".md")
-		}
-		filename = baseName + ".cost.csv"
+		// Use baseFilename directly as the base name (it should already be simplified)
+		filename = baseFilename + ".cost.csv"
 	} else {
 		// Default filename if no base provided
 		filename = "stepi_default.cost.csv"
