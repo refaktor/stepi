@@ -132,6 +132,17 @@ func main() {
 		case "models":
 			providers.PrintProvidersInfo()
 			return
+		case "init":
+			handleInitCommand()
+			return
+		case "summarize":
+			if len(os.Args) < 3 {
+				fmt.Fprintln(os.Stderr, "Error: summarize command requires a name argument")
+				fmt.Fprintln(os.Stderr, "Usage: stepi summarize <name>")
+				os.Exit(1)
+			}
+			handleSummarizeCommand(os.Args[2])
+			return
 		}
 	}
 
@@ -160,11 +171,13 @@ Primary Usage:
 Legacy Usage:
   stepi [options] <input.md> <output.md>  # Explicit output (deprecated)
 
-Subcommands:
+Commands:
   stepi list                              # List stepi files with metadata
   stepi models                            # Show available providers and models
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
+  stepi init                              # Initialize .stepi folder in current directory
+  stepi summarize <name>                  # Generate summary of all files with given name
 
 Options:
   --model <id>            Model ID (default: claude-sonnet-4-20250514)
@@ -200,6 +213,8 @@ Examples:
   echo "What is 2+2?" | stepi            # Pipe mode (output to stdout)
   echo "Analyze this code" | stepi --name analysis # Creates analysis.md, analysis.out.md, etc.
   stepi list                             # Show all stepi projects
+  stepi init                             # Initialize .stepi folder
+  stepi summarize myproject              # Generate summary of myproject files
 
 Session examples:
   stepi --session-start myproject        # Start session
@@ -611,6 +626,151 @@ File naming (simplified):
 	if result.Error != nil {
 		os.Exit(1)
 	}
+}
+
+// handleInitCommand creates a .stepi folder in the current directory
+func handleInitCommand() {
+	if err := os.MkdirAll(".stepi", 0755); err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating .stepi directory: %v\n", err)
+		os.Exit(1)
+	}
+	fmt.Println("Initialized .stepi folder in current directory")
+}
+
+// handleSummarizeCommand generates a summary of all files with the given name
+func handleSummarizeCommand(name string) {
+	// Find all files matching the pattern
+	var files []string
+	
+	// Pattern 1: .stepi/nameXX format
+	stepiPattern := fmt.Sprintf(".stepi/%s*", name)
+	stepiFiles, _ := filepath.Glob(stepiPattern)
+	for _, file := range stepiFiles {
+		if strings.HasSuffix(file, ".md") && !strings.HasSuffix(file, ".sum.md") {
+			files = append(files, file)
+		}
+	}
+	
+	// Pattern 2: nameXX format
+	pattern := fmt.Sprintf("%s*", name)
+	nameFiles, _ := filepath.Glob(pattern)
+	for _, file := range nameFiles {
+		if strings.HasSuffix(file, ".md") && !strings.HasSuffix(file, ".sum.md") {
+			files = append(files, file)
+		}
+	}
+	
+	if len(files) == 0 {
+		fmt.Fprintf(os.Stderr, "No files found matching pattern: %s\n", name)
+		os.Exit(1)
+	}
+	
+	// Sort files numerically
+	sort.Slice(files, func(i, j int) bool {
+		numI := extractStepNumber(files[i])
+		numJ := extractStepNumber(files[j])
+		if numI == 0 && numJ == 0 {
+			return files[i] < files[j]
+		}
+		return numI < numJ
+	})
+	
+	// Read all files and generate summary
+	var summary strings.Builder
+	summary.WriteString(fmt.Sprintf("# Summary: %s\n\n", name))
+	
+	// Extract overall goal from first file
+	if len(files) > 0 {
+		if content, err := os.ReadFile(files[0]); err == nil {
+			lines := strings.Split(string(content), "\n")
+			if len(lines) > 0 {
+				firstLine := strings.TrimSpace(lines[0])
+				if firstLine != "" {
+					summary.WriteString("## Overall Goal\n\n")
+					summary.WriteString(fmt.Sprintf("%s\n\n", firstLine))
+				}
+			}
+		}
+	}
+	
+	summary.WriteString("## Steps Summary\n\n")
+	
+	for i, file := range files {
+		stepNum := extractStepNumber(file)
+		if stepNum == 0 {
+			stepNum = i + 1
+		}
+		
+		content, err := os.ReadFile(file)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: Could not read file %s: %v\n", file, err)
+			continue
+		}
+		
+		summary.WriteString(fmt.Sprintf("### Step %d: %s\n\n", stepNum, file))
+		
+		// Extract first few lines as step description
+		lines := strings.Split(string(content), "\n")
+		descLines := 0
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if line != "" && !strings.HasPrefix(line, "#") {
+				summary.WriteString(fmt.Sprintf("- %s\n", line))
+				descLines++
+				if descLines >= 3 {
+					break
+				}
+			}
+		}
+		
+		// Look for corresponding .out.md file to see what was accomplished
+		outFile := strings.TrimSuffix(file, ".md") + ".out.md"
+		if outContent, err := os.ReadFile(outFile); err == nil {
+			outLines := strings.Split(string(outContent), "\n")
+			summary.WriteString("\n**What was done:**\n")
+			
+			// Extract key accomplishments (look for tool usage or key changes)
+			toolUsed := false
+			for _, line := range outLines {
+				line = strings.TrimSpace(line)
+				if strings.Contains(line, "bash") || strings.Contains(line, "write") || 
+				   strings.Contains(line, "edit") || strings.Contains(line, "read") {
+					if !toolUsed {
+						summary.WriteString("- Used tools: ")
+						toolUsed = true
+					}
+				}
+				
+				// Look for completion indicators
+				if strings.Contains(strings.ToLower(line), "done") || 
+				   strings.Contains(strings.ToLower(line), "completed") ||
+				   strings.Contains(strings.ToLower(line), "successfully") {
+					summary.WriteString(fmt.Sprintf("- %s\n", line))
+					break
+				}
+			}
+			
+			if toolUsed {
+				summary.WriteString("bash, read, write, edit\n")
+			}
+		}
+		
+		summary.WriteString("\n")
+	}
+	
+	// Write summary to file
+	summaryFile := fmt.Sprintf("%s.sum.md", name)
+	if strings.Contains(name, ".stepi/") {
+		summaryFile = fmt.Sprintf("%s.sum.md", name)
+	}
+	
+	if err := os.WriteFile(summaryFile, []byte(summary.String()), 0644); err != nil {
+		fmt.Fprintf(os.Stderr, "Error writing summary file: %v\n", err)
+		os.Exit(1)
+	}
+	
+	fmt.Printf("Summary written to: %s\n", summaryFile)
+	fmt.Printf("Analyzed %d files\n", len(files))
 }
 
 
