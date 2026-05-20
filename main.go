@@ -135,6 +135,14 @@ func main() {
 		case "init":
 			handleInitCommand()
 			return
+		case "google":
+			if len(os.Args) < 3 {
+				fmt.Fprintln(os.Stderr, "Error: google command requires a query argument")
+				fmt.Fprintln(os.Stderr, "Usage: stepi google \"your question here\"")
+				os.Exit(1)
+			}
+			handleGoogleCommand(os.Args[2:])
+			return
 		case "summarize":
 			if len(os.Args) < 3 {
 				fmt.Fprintln(os.Stderr, "Error: summarize command requires a name argument")
@@ -174,6 +182,7 @@ Legacy Usage:
 Commands:
   stepi list                              # List stepi files with metadata
   stepi models                            # Show available providers and models
+  stepi google [--model <model>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
   stepi init                              # Initialize .stepi folder in current directory
@@ -181,7 +190,7 @@ Commands:
 
 Options:
   --model <id>            Model ID (default: claude-sonnet-4-20250514)
-  --provider <name>       LLM provider: anthropic, openai (auto-detected if not specified)
+  --provider <name>       LLM provider: anthropic, openai, gemini (auto-detected if not specified)
   --thinking <level>      Thinking level: off, low, medium, high (default: off)
   --fullcoms              Save full communication log to <output>.fullcoms.md
                           (Not available in session or pipe mode)
@@ -195,6 +204,7 @@ Options:
 Environment Variables:
   ANTHROPIC_API_KEY    Anthropic API key (required for Anthropic models)
   OPENAI_API_KEY       OpenAI API key (required for OpenAI/Codex models)
+  GEMINI_API_KEY       Gemini API key (required for Gemini models and google command)
   STEPI_MODEL          Default model
   STEPI_PROVIDER       Default provider
   STEPI_THINKING       Default thinking level
@@ -1174,6 +1184,145 @@ func generateUnifiedCostsCSV() {
 	}
 
 	fmt.Printf("Unified costs written to: %s\n", outputFile)
+}
+
+// handleGoogleCommand handles the google search command
+func handleGoogleCommand(args []string) {
+	// Check for help flag first
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			fmt.Println("stepi google - Search using Google's Gemini AI with Google Search Grounding")
+			fmt.Println()
+			fmt.Println("Usage:")
+			fmt.Println("  stepi google [--model <model>] \"your question here\"")
+			fmt.Println()
+			fmt.Println("Options:")
+			fmt.Println("  --model <model>    Gemini model to use (default: gemini-3-flash-preview)")
+			fmt.Println("                     Available: gemini-3-flash-preview, gemini-3-pro-preview,")
+			fmt.Println("                     gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash,") 
+			fmt.Println("                     gemini-pro-latest, gemini-flash-latest")
+			fmt.Println()
+			fmt.Println("Google Search Grounding:")
+			fmt.Println("  This command uses real Google Search grounding with supported models.")
+			fmt.Println("  Responses include live search results, source citations, and search metadata.")
+			fmt.Println("  All models support Google Search grounding via the unified GenAI SDK.")
+			fmt.Println()
+			fmt.Println("Environment Variables:")
+			fmt.Println("  GEMINI_API_KEY     Required. Get from: https://makersuite.google.com/app/apikey")
+			fmt.Println()
+			fmt.Println("Examples:")
+			fmt.Println("  stepi google \"latest developments in AI\"")
+			fmt.Println("  stepi google --model gemini-3-flash-preview \"current news about Go programming\"")
+			fmt.Println("  stepi google \"what happened in the stock market today\"")
+			return
+		}
+	}
+	
+	// Parse google command flags
+	model := "gemini-3-flash-preview" // Default to newest model with best search capabilities
+	var query string
+	
+	// Simple argument parsing for google command
+	for i, arg := range args {
+		if arg == "--model" && i+1 < len(args) {
+			model = args[i+1]
+			// Remove model flag and its value from args
+			args = append(args[:i], args[i+2:]...)
+			break
+		}
+	}
+	
+	if len(args) == 0 {
+		fmt.Fprintln(os.Stderr, "Error: No query provided")
+		fmt.Fprintln(os.Stderr, "Usage: stepi google [--model <model>] \"your question here\"")
+		fmt.Fprintln(os.Stderr, "Available models: gemini-3-flash-preview, gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash, gemini-pro-latest, gemini-flash-latest")
+		fmt.Fprintln(os.Stderr, "Use: stepi google --help for more information")
+		os.Exit(1)
+	}
+
+	// Join all arguments to form the query
+	query = strings.Join(args, " ")
+
+	// Get Gemini API key from environment
+	geminiAPIKey := os.Getenv("GEMINI_API_KEY")
+	if geminiAPIKey == "" {
+		fmt.Fprintln(os.Stderr, "Error: GEMINI_API_KEY environment variable is required")
+		fmt.Fprintln(os.Stderr, "Please set your Gemini API key: export GEMINI_API_KEY=your_api_key_here")
+		fmt.Fprintln(os.Stderr, "Get your API key from: https://makersuite.google.com/app/apikey")
+		os.Exit(1)
+	}
+
+	// Validate model
+	validModels := []string{"gemini-3-flash-preview", "gemini-3-pro-preview", "gemini-2.5-pro", "gemini-2.5-flash", "gemini-2.0-flash", "gemini-pro-latest", "gemini-flash-latest"}
+	isValidModel := false
+	for _, validModel := range validModels {
+		if model == validModel {
+			isValidModel = true
+			break
+		}
+	}
+	if !isValidModel {
+		fmt.Fprintf(os.Stderr, "Error: Invalid model '%s'. Valid models are: %s\n", model, strings.Join(validModels, ", "))
+		os.Exit(1)
+	}
+
+	// Create provider config with search grounding enabled
+	config := providers.ProviderConfig{
+		Provider:     "gemini",
+		GeminiAPIKey: geminiAPIKey,
+		GeminiSettings: providers.GeminiSettings{
+			SearchGrounding: true, // Enable real Google Search grounding
+		},
+	}
+
+	// Create Gemini provider (will use unified SDK due to SearchGrounding=true)
+	provider, err := providers.NewProvider(config)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating provider: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Create search prompt optimized for Google Search grounding
+	searchPrompt := fmt.Sprintf("Search for and provide current information about: %s\n\nPlease provide comprehensive, up-to-date information with specific details and context.", query)
+
+	// Set parameters for search queries
+	maxTokens := 4096
+
+	// Create chat completion request
+	req := providers.ChatCompletionRequest{
+		Model:       model,
+		MaxTokens:   maxTokens,
+		Messages: []providers.ChatMessage{
+			{
+				Role:    providers.RoleUser,
+				Content: searchPrompt,
+			},
+		},
+	}
+
+	// Display search status
+	fmt.Printf("🔍 Google Search + Gemini (%s) searching for: %s\n", model, query)
+	fmt.Println("" + strings.Repeat("=", 80))
+
+	// Execute the request with real Google Search grounding
+	ctx := context.Background()
+	resp, err := provider.CreateChatCompletion(ctx, req)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "\n❌ Error during search: %v\n", err)
+		os.Exit(1)
+	}
+
+	// Print the response (includes search results and citations)
+	if len(resp.Content) > 0 {
+		fmt.Println(resp.Content[0].Text)
+	}
+
+	// Print usage information
+	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Printf("📊 Usage: %d input tokens, %d output tokens (Cost: $%.6f)\n", 
+		resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.Cost)
+	
+	fmt.Println("✅ Search completed with real Google Search grounding and source citations.")
 }
 
 // Step command implementations

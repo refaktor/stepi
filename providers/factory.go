@@ -18,8 +18,17 @@ func NewProvider(config ProviderConfig) (Provider, error) {
 			return nil, fmt.Errorf("OPENAI_API_KEY is required for openai provider")
 		}
 		return NewOpenAIProvider(config)
+	case "gemini":
+		if config.GeminiAPIKey == "" {
+			return nil, fmt.Errorf("GEMINI_API_KEY is required for gemini provider")
+		}
+		// Use unified SDK if search grounding is enabled
+		if config.GeminiSettings.SearchGrounding {
+			return NewGeminiUnifiedProvider(config)
+		}
+		return NewGeminiProvider(config)
 	default:
-		return nil, fmt.Errorf("unsupported provider: %s (supported: anthropic, openai)", config.Provider)
+		return nil, fmt.Errorf("unsupported provider: %s (supported: anthropic, openai, gemini)", config.Provider)
 	}
 }
 
@@ -36,6 +45,11 @@ func GetProviderForModel(model string) string {
 	   strings.Contains(model, "davinci") ||
 	   strings.Contains(model, "codex") {
 		return "openai"
+	}
+	
+	// Gemini models
+	if strings.HasPrefix(model, "gemini-") {
+		return "gemini"
 	}
 	
 	// Default to anthropic for backward compatibility
@@ -60,6 +74,18 @@ func ListAvailableModels() map[string][]string {
 			"code-davinci-002", // Codex
 			"text-davinci-003",
 			"gpt-4-code",       // Hypothetical future model
+		},
+		"gemini": {
+			"gemini-3-flash-preview",
+			"gemini-3-pro-preview", 
+			"gemini-2.5-pro",
+			"gemini-2.5-flash",
+			"gemini-2.0-flash",
+			"gemini-pro-latest",
+			"gemini-flash-latest",
+			"gemini-1.5-pro",
+			"gemini-1.5-flash",
+			"gemini-pro",
 		},
 	}
 }

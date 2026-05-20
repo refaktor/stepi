@@ -35,11 +35,13 @@ $ stepi --session-end myproject
 ### Multiple LLM Providers
 - **Anthropic Claude**: Full model family (claude-3-5-sonnet, haiku, etc.)
 - **OpenAI**: GPT models and Codex for code generation
+- **Google Gemini**: Gemini models with optional search capabilities  
 - **Auto-detection**: Provider selected based on model name
 
 ```bash
 $ stepi --model claude-3-5-haiku-20241022 task.md      # Fast and cheap
 $ stepi --model gpt-4 task.md                          # OpenAI GPT-4  
+$ stepi --model gemini-1.5-pro task.md                 # Google Gemini
 $ stepi --model code-davinci-002 task.md               # Codex for coding
 ```
 
@@ -69,6 +71,18 @@ The agent has access to:
 - **edit**: Make precise surgical edits
 - **bash**: Execute shell commands
 
+### Google Search with Gemini
+Real-time information retrieval using Google's Gemini AI:
+
+```bash
+$ export GEMINI_API_KEY=your_api_key
+$ stepi google "latest developments in AI"                    # Default model (pro)
+$ stepi google --model gemini-1.5-flash "quick question"     # Faster model
+$ stepi google --help                                         # Show detailed help
+```
+
+Get your Gemini API key from: https://makersuite.google.com/app/apikey
+
 ### Cost Tracking & Management
 Automatic cost tracking with analysis tools:
 
@@ -91,6 +105,7 @@ $ cp stepi ~/.local/bin/  # or add to PATH
 ```bash
 ANTHROPIC_API_KEY=sk-...        # Required for Claude models
 OPENAI_API_KEY=sk-...           # Required for OpenAI models
+GEMINI_API_KEY=...              # Required for Gemini models and google command
 STEPI_MODEL=claude-sonnet-4     # Default model
 STEPI_THINKING=medium           # Default thinking level
 ```

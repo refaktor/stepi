@@ -145,10 +145,12 @@ type ProviderConfig struct {
 	// API Keys
 	AnthropicAPIKey string
 	OpenAIAPIKey    string
+	GeminiAPIKey    string
 	
 	// Provider-specific settings
 	AnthropicSettings AnthropicSettings
 	OpenAISettings    OpenAISettings
+	GeminiSettings    GeminiSettings
 }
 
 // AnthropicSettings holds Anthropic-specific settings
@@ -163,4 +165,10 @@ type OpenAISettings struct {
 	TopP            *float32
 	FrequencyPenalty *float32
 	PresencePenalty  *float32
+}
+
+// GeminiSettings holds Gemini-specific settings
+type GeminiSettings struct {
+	// Gemini-specific configuration
+	SearchGrounding bool // Enable Google Search integration
 }

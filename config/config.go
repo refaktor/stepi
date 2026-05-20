@@ -38,6 +38,7 @@ func FromEnvProvider() providers.ProviderConfig {
 	// API Keys
 	cfg.AnthropicAPIKey = os.Getenv("ANTHROPIC_API_KEY")
 	cfg.OpenAIAPIKey = os.Getenv("OPENAI_API_KEY")
+	cfg.GeminiAPIKey = os.Getenv("GEMINI_API_KEY")
 
 	// Model and provider
 	if model := os.Getenv("STEPI_MODEL"); model != "" {
@@ -45,7 +46,7 @@ func FromEnvProvider() providers.ProviderConfig {
 		cfg.Provider = providers.GetProviderForModel(model)
 	} else {
 		// Auto-select provider and default model based on available API keys
-		cfg.Provider, cfg.Model = autoSelectProviderAndModel(cfg.AnthropicAPIKey, cfg.OpenAIAPIKey)
+		cfg.Provider, cfg.Model = autoSelectProviderAndModel(cfg.AnthropicAPIKey, cfg.OpenAIAPIKey, cfg.GeminiAPIKey)
 	}
 
 	// Explicit provider override
@@ -88,7 +89,7 @@ func parseFloat32(s string) *float32 {
 }
 
 // autoSelectProviderAndModel automatically selects provider and model based on available API keys
-func autoSelectProviderAndModel(anthropicKey, openaiKey string) (provider, model string) {
+func autoSelectProviderAndModel(anthropicKey, openaiKey, geminiKey string) (provider, model string) {
 	// If both keys are available, prefer Anthropic (current default behavior)
 	if anthropicKey != "" {
 		return "anthropic", getDefaultModelForProvider("anthropic")
@@ -97,6 +98,11 @@ func autoSelectProviderAndModel(anthropicKey, openaiKey string) (provider, model
 	// If only OpenAI key is available, use OpenAI
 	if openaiKey != "" {
 		return "openai", getDefaultModelForProvider("openai")
+	}
+	
+	// If only Gemini key is available, use Gemini
+	if geminiKey != "" {
+		return "gemini", getDefaultModelForProvider("gemini")
 	}
 	
 	// If no keys are available, default to Anthropic (will error later if key is missing)
@@ -110,6 +116,8 @@ func getDefaultModelForProvider(provider string) string {
 		return "claude-sonnet-4-20250514"
 	case "openai":
 		return "gpt-4"
+	case "gemini":
+		return "gemini-1.5-pro"
 	default:
 		return "claude-sonnet-4-20250514" // fallback to Anthropic default
 	}
