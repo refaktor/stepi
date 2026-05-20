@@ -6,7 +6,9 @@ A streamlined coding agent that works with files and pipes instead of complex UI
 
 > UI is temporary, but files are forever
 
-## Quick Start
+## Basic use
+
+Create a .md file for input, get .out.md as response. Echo input directly, get response and use `stepi` instead of Google.
 
 ```bash
 $ cd my-project
@@ -14,20 +16,41 @@ $ export ANTHROPIC_API_KEY=sk-...........
 
 # Basic file mode - auto-generates output
 $ echo "analyze the code in this project" > task.md
-$ stepi task.md                    # Creates task.out.md
+$ stepi task.md                    # Creates task.out.md and additional logs
 
 # Pipe mode for quick tasks
 $ echo "what are the main files here?" | stepi
 
-# Pipe mode with file saving
-$ echo "create a README for this project" | stepi --name readme
-# Creates readme.md and readme.out.md
+# Gemini grounded with Google Search
+$ stepi google "what are the top tech news of today?"
+```
 
-# Multi-turn sessions
-$ stepi --session-start myproject
-$ echo "read main.go and explain it" | stepi --session myproject  
-$ echo "now optimize the performance" | stepi --session myproject
-$ stepi --session-end myproject
+## Conventions for work on projects
+
+On bigger project we usually create a .stepi folder.
+
+```bash
+$ cd another-project
+$ export ANTHROPIC_API_KEY=sk-...........
+
+# create a .stepi/ folder
+$ stepi init
+
+# cat problem to a file
+$ cat > .stepi/task01.md
+analyze the source code and make a index or map of modules into
+<Ctrl-c>
+
+$ stepi .stepi/task01.md
+# shows what it's doing, creates files:
+# * .stepi/task01.out.md -- as task output
+# * .stepi/task01.log    -- stores what it printed out (log of what it was doing)
+# * .stepi/task01.cmds   -- log of all tool commands
+# * .stepi/task01.chatter -- log of raw communication with llm model
+
+# Pipe mode with file saving
+$ echo "create a README for this project" | stepi --name .stepi/task02
+# creates .stepi/task02.md , .stepi/task02.out.md and other files
 ```
 
 ## Key Features
@@ -38,14 +61,8 @@ $ stepi --session-end myproject
 - **Google Gemini**: Gemini models with optional search capabilities  
 - **Auto-detection**: Provider selected based on model name
 
-```bash
-$ stepi --model claude-3-5-haiku-20241022 task.md      # Fast and cheap
-$ stepi --model gpt-4 task.md                          # OpenAI GPT-4  
-$ stepi --model gemini-1.5-pro task.md                 # Google Gemini
-$ stepi --model code-davinci-002 task.md               # Codex for coding
-```
-
 ### Thinking Modes
+
 Control the agent's reasoning depth:
 
 ```bash
@@ -53,25 +70,17 @@ $ stepi --thinking high complex-task.md    # Deep reasoning for complex problems
 $ stepi --thinking low simple-task.md      # Quick responses for simple tasks
 ```
 
-### Sessions for Multi-turn Conversations
-Persistent conversations that remember context:
-
-```bash
-$ stepi --session-start analysis         # Start session  
-$ echo "examine the database code" | stepi --session analysis
-$ echo "find performance bottlenecks" | stepi --session analysis  
-$ echo "suggest optimizations" | stepi --session analysis
-$ stepi --session-end analysis          # Clean up
-```
-
 ### Tool Integration
-The agent has access to:
+
+The agent is derived from Pi coding agend and has access to:
+
 - **read**: Read any file in your project
 - **write**: Create or overwrite files  
 - **edit**: Make precise surgical edits
 - **bash**: Execute shell commands
 
 ### Google Search with Gemini
+
 Real-time information retrieval using Google's Gemini AI:
 
 ```bash
@@ -84,13 +93,8 @@ $ stepi google --help                                         # Show detailed he
 Get your Gemini API key from: https://makersuite.google.com/app/apikey
 
 ### Cost Tracking & Management
-Automatic cost tracking with analysis tools:
 
-```bash
-$ stepi io costs                         # Show cost analysis by project
-$ stepi io costs-csv                     # Generate unified CSV report
-$ stepi io clean                         # Clean up generated files
-```
+**TODO** Automatic cost tracking with analysis tools:
 
 ## Build & Install
 
@@ -108,18 +112,6 @@ OPENAI_API_KEY=sk-...           # Required for OpenAI models
 GEMINI_API_KEY=...              # Required for Gemini models and google command
 STEPI_MODEL=claude-sonnet-4     # Default model
 STEPI_THINKING=medium           # Default thinking level
-```
-
-## File Organization
-
-Stepi creates a clean file structure:
-```
-project/
-├── task.md              # Your input
-├── task.out.md         # Agent's response  
-├── task.log            # Execution log
-├── task.cost.csv       # Cost tracking
-└── task.chatter        # Full LLM conversation
 ```
 
 ## Why Stepi?
