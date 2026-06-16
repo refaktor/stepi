@@ -16,7 +16,7 @@ $ export ANTHROPIC_API_KEY=sk-...........
 
 # Basic file mode - auto-generates output
 $ echo "analyze the code in this project" > task.md
-$ stepi task.md                    # Creates task.out.md and additional logs
+$ stepi task.md                    # Creates task.out.md and additional files
 
 # Pipe mode for quick tasks
 $ echo "what are the main files here?" | stepi
@@ -127,7 +127,7 @@ When you create a step you can now refer to previous input, output or log files 
 
 ```bash
 $ cat > .stepi/analysis01.md
-analyze the current project and report it's main parts, modules and dependencies
+analyze the current project and report its main parts, modules and dependencies
 (ctrl-c)
 $ stepi .stepi/analysis01
 ... does the work ...
@@ -158,7 +158,5 @@ Please provide up-to-date information and summarize it to 5 lines.
 (ctrl-c)
 
 $ stepi  google "what is ryelang and does it make any sense to learn it" --profile short
-...
-... result in 5 lines
-...
+... result in 5 lines ...
 ```
