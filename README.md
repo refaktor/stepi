@@ -79,9 +79,7 @@ Get your Gemini API key from: https://makersuite.google.com/app/apikey
 
 ## Get & Install
 
-Download the latest release for your system:
-
-**https://github.com/refaktor/stepi/releases/**
+**[Download latest release](https://github.com/refaktor/stepi/releases/)**
 
 Or build from source:
 
