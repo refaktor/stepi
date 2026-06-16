@@ -108,9 +108,9 @@ STEPI_THINKING=medium           # Default thinking level
 When you create a step you can now refer to previous input, output or log files by these:
 
 ```bash
-$ ( git diff && echo "analyze the diff above and describe the changes being made" ) | stepi -name .stepi/diff01
+$ ( git diff && echo "analyze the diff above and describe the changes" ) | stepi -name .stepi/diff01
 
-$ echo "read {OUT-1} and check if any changes are critical or introduce risk" | stepi -name .stepi/diff02
+$ echo "read {OUT-1} and report how risky changes are" | stepi -name .stepi/diff02
 
 $ echo "add tests for changes described in files: {OUT01:02} " | stepi -name .stepi/diff03
 ```
