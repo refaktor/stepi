@@ -541,7 +541,7 @@ File naming (simplified):
 	}()
 
 	// Print info (only in file mode, not session+pipe)
-	if !pipeMode && !sessionMode {
+	if (!pipeMode || nameMode) && !sessionMode {
 		fmt.Fprintf(os.Stderr, colors.Info("Provider: %s\n"), llmProvider.Name())
 		fmt.Fprintf(os.Stderr, colors.Info("Model: %s\n"), cfg.Model)
 		fmt.Fprintf(os.Stderr, colors.Info("Input: %s\n"), inputFile)
@@ -631,7 +631,7 @@ File naming (simplified):
 		result = agent.RunWithProvider(ctx, systemPrompt, inputStr, agentTools, llmProvider, cfg, logger)
 	}
 
-	if !pipeMode && !sessionMode {
+	if (!pipeMode || nameMode) && !sessionMode {
 		fmt.Fprintln(os.Stderr, "\n---")
 	}
 
@@ -640,8 +640,8 @@ File naming (simplified):
 	}
 
 	// Write output
-	if pipeMode || (sessionMode && outputFile == "<stdout>") {
-		// Pipe mode or session without output file: write to stdout
+	if (pipeMode && !nameMode) || (sessionMode && outputFile == "<stdout>") {
+		// Pipe mode (without --name) or session without output file: write to stdout
 		fmt.Print(result.Response)
 	} else {
 		// File mode: write to file
