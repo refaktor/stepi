@@ -22,6 +22,7 @@ import (
 	"github.com/user/stepi/providers"
 	"github.com/user/stepi/session"
 	"github.com/user/stepi/tools"
+	"github.com/user/stepi/vars"
 )
 
 // extractStepNumber extracts step number from filename like ".stepi/step04.md" or "something_04.md"
@@ -164,6 +165,7 @@ func main() {
 	sessionEnd := flag.String("session-end", "", "End (delete) a session")
 	name := flag.String("name", "", "Name for file when using pipe input (creates <name>.md and generates <name>.out.md, etc.)")
 	readprev := flag.Bool("readprev", false, "Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md)")
+	silent := flag.Bool("silent", false, "Suppress tool output and edit details")
 	help := flag.Bool("help", false, "Show help")
 	flag.BoolVar(help, "h", false, "Show help")
 
@@ -182,7 +184,7 @@ Legacy Usage:
 Commands:
   stepi list                              # List stepi files with metadata
   stepi models                            # Show available providers and models
-  stepi google [--model <model>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
+  stepi google [--model <model>] [--name <name>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
   stepi init                              # Initialize .stepi folder in current directory
@@ -199,6 +201,7 @@ Options:
   --session-end <name>    End (delete) a session
   --name <name>           Name for file when using pipe input (creates <name>.md and auxiliary files)
   --readprev              Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md and .stepi/stepXX.log)
+  --silent                Suppress tool output and edit details
   -h, --help              Show this help
 
 Environment Variables:
@@ -415,6 +418,7 @@ File naming (simplified):
 	cfg.Model = providerCfg.Model
 	cfg.Thinking = providerCfg.Thinking
 	cfg.FullComs = *fullcoms && !pipeMode && !sessionMode // Disable fullcoms in pipe mode and session mode
+	cfg.Silent = *silent
 	cfg.CostTracking = !sessionMode // Enable cost tracking by default, but disable for session mode
 
 	// Set up log file for cost tracking with simplified naming
@@ -457,6 +461,24 @@ File naming (simplified):
 		}
 	}
 
+	// Expand template variables ({NAME}, {TASK}, {STEP}, {IN-N}, {OUT-N}, {LOG-N},
+	// {INss:ee}, {OUTss:ee}, {LOGss:ee}) using the current filename or --name flag.
+	{
+		var expandPath string
+		if inputFile != "<stdin>" {
+			expandPath = inputFile
+		} else if *name != "" {
+			expandPath = *name
+		}
+		if expandPath != "" {
+			expanded := vars.ExpandFromPath(inputStr, expandPath)
+			if expanded != inputStr {
+				fmt.Fprintln(os.Stderr, colors.Info("Variables expanded in input text"))
+			}
+			inputStr = expanded
+		}
+	}
+
 	// Save input to file if using --name flag
 	if nameMode && pipeMode {
 		inputFileName := *name + ".md"
@@ -480,10 +502,10 @@ File naming (simplified):
 
 	// Create tools
 	agentTools := []agent.Tool{
-		&tools.ReadTool{Cwd: cwd},
-		&tools.WriteTool{Cwd: cwd},
-		&tools.EditTool{Cwd: cwd},
-		&tools.BashTool{Cwd: cwd},
+		&tools.ReadTool{Cwd: cwd, Silent: cfg.Silent},
+		&tools.WriteTool{Cwd: cwd, Silent: cfg.Silent},
+		&tools.EditTool{Cwd: cwd, Silent: cfg.Silent},
+		&tools.BashTool{Cwd: cwd, Silent: cfg.Silent},
 	}
 
 	// Setup context with signal handling
@@ -1194,13 +1216,14 @@ func handleGoogleCommand(args []string) {
 			fmt.Println("stepi google - Search using Google's Gemini AI with Google Search Grounding")
 			fmt.Println()
 			fmt.Println("Usage:")
-			fmt.Println("  stepi google [--model <model>] \"your question here\"")
+			fmt.Println("  stepi google [--model <model>] [--name <name>] \"your question here\"")
 			fmt.Println()
 			fmt.Println("Options:")
 			fmt.Println("  --model <model>    Gemini model to use (default: gemini-3-flash-preview)")
 			fmt.Println("                     Available: gemini-3-flash-preview, gemini-3-pro-preview,")
 			fmt.Println("                     gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash,") 
 			fmt.Println("                     gemini-pro-latest, gemini-flash-latest")
+			fmt.Println("  --name <name>      Save output to <name>.google.md with quoted question and horizontal rule")
 			fmt.Println()
 			fmt.Println("Google Search Grounding:")
 			fmt.Println("  This command uses real Google Search grounding with supported models.")
@@ -1213,28 +1236,35 @@ func handleGoogleCommand(args []string) {
 			fmt.Println("Examples:")
 			fmt.Println("  stepi google \"latest developments in AI\"")
 			fmt.Println("  stepi google --model gemini-3-flash-preview \"current news about Go programming\"")
-			fmt.Println("  stepi google \"what happened in the stock market today\"")
+			fmt.Println("  stepi google --name .stepi/question_bla \"what happened in the stock market today\"")
 			return
 		}
 	}
 	
 	// Parse google command flags
 	model := "gemini-3-flash-preview" // Default to newest model with best search capabilities
+	var nameFlag string
 	var query string
 	
 	// Simple argument parsing for google command
-	for i, arg := range args {
-		if arg == "--model" && i+1 < len(args) {
+	i := 0
+	for i < len(args) {
+		if args[i] == "--model" && i+1 < len(args) {
 			model = args[i+1]
 			// Remove model flag and its value from args
 			args = append(args[:i], args[i+2:]...)
-			break
+		} else if args[i] == "--name" && i+1 < len(args) {
+			nameFlag = args[i+1]
+			// Remove name flag and its value from args
+			args = append(args[:i], args[i+2:]...)
+		} else {
+			i++
 		}
 	}
 	
 	if len(args) == 0 {
 		fmt.Fprintln(os.Stderr, "Error: No query provided")
-		fmt.Fprintln(os.Stderr, "Usage: stepi google [--model <model>] \"your question here\"")
+		fmt.Fprintln(os.Stderr, "Usage: stepi google [--model <model>] [--name <name>] \"your question here\"")
 		fmt.Fprintln(os.Stderr, "Available models: gemini-3-flash-preview, gemini-3-pro-preview, gemini-2.5-pro, gemini-2.5-flash, gemini-2.0-flash, gemini-pro-latest, gemini-flash-latest")
 		fmt.Fprintln(os.Stderr, "Use: stepi google --help for more information")
 		os.Exit(1)
@@ -1312,17 +1342,66 @@ func handleGoogleCommand(args []string) {
 		os.Exit(1)
 	}
 
-	// Print the response (includes search results and citations)
+	// Prepare the output content
+	var output strings.Builder
+	
+	// Add quoted question at the top
+	output.WriteString(fmt.Sprintf("> %s\n\n", query))
+	
+	// Add the response
 	if len(resp.Content) > 0 {
-		fmt.Println(resp.Content[0].Text)
+		output.WriteString(resp.Content[0].Text)
+	}
+	
+	// Add horizontal rule at the end for future questions
+	output.WriteString("\n\n---\n\n")
+
+	// Handle output based on --name flag
+	if nameFlag != "" {
+		outputFile := nameFlag + ".google.md"
+		
+		// Check if file exists to determine if we should append
+		var existingContent []byte
+		var err error
+		if _, statErr := os.Stat(outputFile); statErr == nil {
+			// File exists, read existing content to append to it
+			existingContent, err = os.ReadFile(outputFile)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error reading existing file %s: %v\n", outputFile, err)
+				os.Exit(1)
+			}
+		}
+		
+		// Combine existing content with new content
+		var finalContent string
+		if len(existingContent) > 0 {
+			finalContent = string(existingContent) + output.String()
+		} else {
+			finalContent = output.String()
+		}
+		
+		// Write/append to file
+		if err := os.WriteFile(outputFile, []byte(finalContent), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing to file %s: %v\n", outputFile, err)
+			os.Exit(1)
+		}
+		
+		fmt.Printf("✅ Results saved to: %s\n", outputFile)
+	} else {
+		// Print the response to stdout
+		fmt.Print(output.String())
 	}
 
 	// Print usage information
-	fmt.Println("\n" + strings.Repeat("=", 80))
+	fmt.Println("" + strings.Repeat("=", 80))
 	fmt.Printf("📊 Usage: %d input tokens, %d output tokens (Cost: $%.6f)\n", 
 		resp.Usage.InputTokens, resp.Usage.OutputTokens, resp.Usage.Cost)
 	
-	fmt.Println("✅ Search completed with real Google Search grounding and source citations.")
+	if nameFlag != "" {
+		fmt.Println("✅ Search completed with real Google Search grounding and source citations.")
+	} else {
+		fmt.Println("✅ Search completed with real Google Search grounding and source citations.")
+	}
 }
 
 // Step command implementations

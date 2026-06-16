@@ -17,7 +17,8 @@ const (
 
 // ReadTool reads file contents
 type ReadTool struct {
-	Cwd string
+	Cwd    string
+	Silent bool
 }
 
 func (t *ReadTool) Name() string {

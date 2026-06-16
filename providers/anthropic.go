@@ -21,9 +21,9 @@ func NewAnthropicProvider(config ProviderConfig) (*AnthropicProvider, error) {
 	if config.AnthropicAPIKey != "" {
 		opts = append(opts, option.WithAPIKey(config.AnthropicAPIKey))
 	}
-	
+
 	client := anthropic.NewClient(opts...)
-	
+
 	return &AnthropicProvider{
 		client: client,
 		config: config,
@@ -38,8 +38,9 @@ func (p *AnthropicProvider) Name() string {
 // Models returns available Anthropic models
 func (p *AnthropicProvider) Models() []string {
 	return []string{
+		"claude-sonnet-4-6",
 		"claude-sonnet-4-20250514",
-		"claude-sonnet-4-5-20250929", 
+		"claude-sonnet-4-20250514",
 		"claude-3-5-haiku-20241022",
 		"claude-3-5-sonnet-20241022",
 		"claude-opus-4-20250514",
@@ -60,19 +61,20 @@ func (p *AnthropicProvider) ValidateModel(model string) bool {
 func (p *AnthropicProvider) CalculateCost(model string, inputTokens, outputTokens int64) float64 {
 	// Model pricing (USD per million tokens)
 	modelPricing := map[string]struct{ Input, Output float64 }{
-		"claude-sonnet-4-20250514":     {3.0, 15.0},
-		"claude-sonnet-4-5-20250929":   {3.0, 15.0},
-		"claude-3-5-haiku-20241022":    {0.8, 4.0},
-		"claude-3-5-sonnet-20241022":   {3.0, 15.0},
-		"claude-opus-4-20250514":       {15.0, 75.0},
+		"claude-sonnet-4-6":          {3.0, 15.0},
+		"claude-sonnet-4-20250514":   {3.0, 15.0},
+		"claude-sonnet-4-5-20250929": {3.0, 15.0},
+		"claude-3-5-haiku-20241022":  {0.8, 4.0},
+		"claude-3-5-sonnet-20241022": {3.0, 15.0},
+		"claude-opus-4-20250514":     {15.0, 75.0},
 	}
-	
+
 	pricing, ok := modelPricing[model]
 	if !ok {
 		// Default to sonnet pricing
 		pricing = struct{ Input, Output float64 }{3.0, 15.0}
 	}
-	
+
 	return (float64(inputTokens) * pricing.Input / 1_000_000) +
 		(float64(outputTokens) * pricing.Output / 1_000_000)
 }
@@ -230,7 +232,7 @@ func (p *AnthropicProvider) convertAnthropicResponse(message *anthropic.Message)
 		case anthropic.ToolUseBlock:
 			args := make(map[string]any)
 			json.Unmarshal([]byte(variant.JSON.Input.Raw()), &args)
-			
+
 			contentBlocks = append(contentBlocks, ContentBlock{
 				Type: ContentTypeToolCall,
 				ToolCall: &ToolCall{

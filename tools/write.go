@@ -5,13 +5,16 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/user/stepi/colors"
 )
 
 // WriteTool writes content to a file
 type WriteTool struct {
-	Cwd string
+	Cwd    string
+	Silent bool
 }
 
 func (t *WriteTool) Name() string {
@@ -65,5 +68,30 @@ func (t *WriteTool) Execute(ctx context.Context, args map[string]any) (string, e
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 
-	return fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), pathArg), nil
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Successfully wrote %d bytes to %s", len(content), pathArg))
+	
+	// Show file content preview unless silent
+	if !t.Silent {
+		result.WriteString("\n")
+		result.WriteString(colors.EditFile(fmt.Sprintf("=== %s ===", pathArg)))
+		
+		// Show first few lines of content
+		lines := strings.Split(content, "\n")
+		maxLines := 10
+		if len(lines) > maxLines {
+			result.WriteString("\n" + colors.Info(fmt.Sprintf("Showing first %d lines of %d:", maxLines, len(lines))))
+			for i := 0; i < maxLines; i++ {
+				result.WriteString("\n" + colors.EditAdd(fmt.Sprintf("+ %s", lines[i])))
+			}
+			result.WriteString("\n" + colors.Info(fmt.Sprintf("... and %d more lines", len(lines)-maxLines)))
+		} else {
+			result.WriteString("\n" + colors.Info("Content:"))
+			for _, line := range lines {
+				result.WriteString("\n" + colors.EditAdd(fmt.Sprintf("+ %s", line)))
+			}
+		}
+	}
+
+	return result.String(), nil
 }

@@ -8,11 +8,29 @@ import (
 	"strings"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/user/stepi/colors"
 )
+
+// min returns the smaller of two integers
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+// max returns the larger of two integers
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
 
 // EditTool edits a file by replacing exact text
 type EditTool struct {
-	Cwd string
+	Cwd    string
+	Silent bool
 }
 
 func (t *EditTool) Name() string {
@@ -88,5 +106,41 @@ func (t *EditTool) Execute(ctx context.Context, args map[string]any) (string, er
 		return "", fmt.Errorf("failed to write file: %w", err)
 	}
 
-	return fmt.Sprintf("Successfully replaced text in %s", pathArg), nil
+	var result strings.Builder
+	result.WriteString(fmt.Sprintf("Successfully replaced text in %s", pathArg))
+	
+	// Show detailed edit changes unless silent
+	if !t.Silent {
+		result.WriteString("\n")
+		result.WriteString(colors.EditFile(fmt.Sprintf("=== %s ===", pathArg)))
+		result.WriteString("\n")
+		result.WriteString(colors.EditFrom("- " + strings.ReplaceAll(oldText, "\n", "\\n")))
+		result.WriteString("\n")
+		result.WriteString(colors.EditTo("+ " + strings.ReplaceAll(newText, "\n", "\\n")))
+		
+		// Show context lines if the change is small
+		if len(oldText) <= 200 && len(newText) <= 200 {
+			lines := strings.Split(string(content), "\n")
+			for i, line := range lines {
+				if strings.Contains(line, oldText) {
+					start := max(0, i-2)
+					end := min(len(lines), i+3)
+					result.WriteString("\n\n" + colors.Info("Context:"))
+					for j := start; j < end; j++ {
+						prefix := fmt.Sprintf("%3d: ", j+1)
+						if j == i {
+							// This is the changed line
+							changedLine := strings.Replace(lines[j], oldText, newText, 1)
+							result.WriteString("\n" + colors.Info(prefix) + colors.EditTo(changedLine))
+						} else {
+							result.WriteString("\n" + colors.Info(prefix) + colors.Info(lines[j]))
+						}
+					}
+					break
+				}
+			}
+		}
+	}
+
+	return result.String(), nil
 }

@@ -288,6 +288,14 @@ func Run(ctx context.Context, systemPrompt, userPrompt string, tools []Tool, cfg
 				logToolExecution(block.Name, args, logger)
 				result, err := tool.Execute(ctx, args)
 				
+				// Display tool output to user (unless silent)
+				if !cfg.Silent && result != "" {
+					fmt.Print(result)
+					if !strings.HasSuffix(result, "\n") {
+						fmt.Print("\n")
+					}
+				}
+				
 				// Log tool execution
 				logger.Command(block.Name, args, result, err)
 				
@@ -697,6 +705,14 @@ func RunWithHistory(ctx context.Context, systemPrompt, userPrompt string, histor
 				logToolExecution(block.Name, args, logger)
 
 				result, err := tool.Execute(ctx, args)
+				
+				// Display tool output to user (unless silent)
+				if !cfg.Silent && result != "" {
+					fmt.Print(result)
+					if !strings.HasSuffix(result, "\n") {
+						fmt.Print("\n")
+					}
+				}
 				
 				// Log tool cost tracking
 				if costLogger != nil {

@@ -27,6 +27,7 @@ type Config struct {
 	Thinking   string // "off", "low", "medium", "high"
 	MaxTurns   int    // Maximum LLM turns (0 = unlimited)
 	FullComs   bool   // Save full communication log
+	Silent     bool   // Suppress tool output and edit details
 	// New logging options
 	LogFile     string // Base name for log files (if set, enables .log, .cmds, .chatter)
 	CostTracking bool  // Enable cost tracking to CSV

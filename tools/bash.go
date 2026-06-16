@@ -5,9 +5,11 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 	"time"
 
 	"github.com/anthropics/anthropic-sdk-go"
+	"github.com/user/stepi/colors"
 )
 
 const (
@@ -17,7 +19,8 @@ const (
 
 // BashTool executes shell commands
 type BashTool struct {
-	Cwd string
+	Cwd    string
+	Silent bool
 }
 
 func (t *BashTool) Name() string {
@@ -82,12 +85,46 @@ func (t *BashTool) Execute(ctx context.Context, args map[string]any) (string, er
 		output = "...[truncated]\n" + output[len(output)-defaultMaxOutput:]
 	}
 
-	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
-			return output + fmt.Sprintf("\n\nCommand timed out after %v", timeout), nil
+	var result strings.Builder
+	
+	// Show command output with colors unless silent
+	if !t.Silent {
+		result.WriteString(colors.Info(fmt.Sprintf("$ %s", command)))
+		result.WriteString("\n")
+		
+		if output != "" {
+			// Color stdout and stderr differently
+			if stdout.Len() > 0 {
+				stdoutLines := strings.Split(stdout.String(), "\n")
+				for _, line := range stdoutLines {
+					if line != "" {
+						result.WriteString(colors.CommandOutput(line) + "\n")
+					}
+				}
+			}
+			
+			if stderr.Len() > 0 {
+				stderrLines := strings.Split(stderr.String(), "\n")
+				for _, line := range stderrLines {
+					if line != "" {
+						result.WriteString(colors.CommandError(line) + "\n")
+					}
+				}
+			}
 		}
-		return output + fmt.Sprintf("\n\nCommand exited with error: %v", err), nil
+	} else {
+		// Silent mode: just return the raw output
+		result.WriteString(output)
 	}
 
-	return output, nil
+	if err != nil {
+		if ctx.Err() == context.DeadlineExceeded {
+			result.WriteString(fmt.Sprintf("\nCommand timed out after %v", timeout))
+			return result.String(), nil
+		}
+		result.WriteString(fmt.Sprintf("\nCommand exited with error: %v", err))
+		return result.String(), nil
+	}
+
+	return result.String(), nil
 }

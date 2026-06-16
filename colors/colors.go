@@ -111,3 +111,37 @@ func Enable() {
 func IsEnabled() bool {
 	return colorEnabled
 }
+
+// File editing colors
+func EditFrom(text string) string {
+	return colorize(BrightRed+Bold, text)
+}
+
+func EditTo(text string) string {
+	return colorize(BrightGreen+Bold, text)
+}
+
+func EditDelete(text string) string {
+	return colorize(Red, text)
+}
+
+func EditAdd(text string) string {
+	return colorize(Green, text)
+}
+
+func EditFile(text string) string {
+	return colorize(BrightBlue, text)
+}
+
+// Command output colors
+func CommandOutput(text string) string {
+	return colorize(Cyan, text)
+}
+
+func CommandError(text string) string {
+	return colorize(BrightRed, text)
+}
+
+func FileContent(text string) string {
+	return colorize(Gray, text)
+}

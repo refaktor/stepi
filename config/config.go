@@ -113,12 +113,12 @@ func autoSelectProviderAndModel(anthropicKey, openaiKey, geminiKey string) (prov
 func getDefaultModelForProvider(provider string) string {
 	switch provider {
 	case "anthropic":
-		return "claude-sonnet-4-20250514"
+		return "claude-sonnet-4-6"
 	case "openai":
 		return "gpt-4"
 	case "gemini":
 		return "gemini-1.5-pro"
 	default:
-		return "claude-sonnet-4-20250514" // fallback to Anthropic default
+		return "claude-sonnet-4-6" // fallback to Anthropic default
 	}
 }
