@@ -132,6 +132,19 @@ $ echo "read {OUT-1} and check if any changes are critical or introduce risk" | 
 
 $ echo "add tests for changes described in files: {OUT01:02} " | stepi -name .stepi/diff03
 ```
+
+| Variable | Example result | Notes |
+|----------|---------------|-------|
+| `{STEP}` | `03` | Current step, zero-padded |
+| `{IN-1}` | `sometask02.md` | Input file N steps back |
+| `{OUT-1}` | `sometask02.out.md` | Output file N steps back |
+| `{LOG-1}` | `sometask02.log` | Log file N steps back |
+| `{IN-2}`, `{OUT-2}`, … | — | Any N ≥ 1 |
+| `{IN01:03}` | `sometask01.md`<br>`sometask02.md`<br>`sometask03.md` | Range of input files |
+| `{OUT02:04}` | — | Range of output files |
+| `{LOG03:04}` | — | Range of log files |
+
+
 ## PROFILES
 
 Experimental: all the texts for communicating with llm-s was extracted to profiles/default/* . You can make your ownd profiles/ subfolder and tune them and then run the agent with your profile
@@ -156,4 +169,23 @@ Please provide up-to-date information and summarize it to 5 lines.
 
 $ stepi google -profile short "what is ryelang and does it make any sense to learn it"
 ... result in 5 lines ...
+```
+
+# Cookbook
+
+Just some useful oneliners / examples:
+
+```bash
+# see the tasks you were working on on current project
+ls -ltr .stepi
+
+# find a particular keyword you were working on
+grep -r "multilang" .stepi
+
+# summarize a task with multiple steps
+stepi summarize .stepi/task
+# summary is written to .stepi/task.sum.md
+
+# continue from where you were interrupted
+echo "I asked you to do {IN-1} but interrupted you to say, don't do X, just Y. Here is where you were at {LOG-1}. Continue" |stepi -name .stepi/task04 
 ```
