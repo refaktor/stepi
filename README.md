@@ -6,6 +6,17 @@ A streamlined coding agent that works with files and pipes instead of complex UI
 
 > UI is temporary, but files are forever
 
+## Why Stepi?
+
+- **File-based**: All inputs and outputs are files - no information lost in UIs
+- **Automation-friendly**: Easy to integrate into scripts and workflows
+- **Persistent**: Context and history preserved across sessions
+- **Unix philosophy**: Compose with pipes, scripts, and other tools
+- **Cost-conscious**: Track and analyze LLM usage costs
+- **Multi-provider**: Use the best model for each task
+
+Perfect for developers who prefer terminal workflows and want full control over their AI coding assistant interactions.
+
 ## Basic use
 
 Create a .md file for input, get .out.md as response. Echo input directly, get response and use `stepi` instead of Google.
@@ -53,24 +64,7 @@ $ echo "create a README for this project" | stepi --name .stepi/task02
 # creates .stepi/task02.md , .stepi/task02.out.md and other files
 ```
 
-## Key Features
-
-### Multiple LLM Providers
-- **Anthropic Claude**: Full model family (claude-3-5-sonnet, haiku, etc.)
-- **OpenAI**: GPT models and Codex for code generation
-- **Google Gemini**: Gemini models with optional search capabilities  
-- **Auto-detection**: Provider selected based on model name
-
-### Thinking Modes
-
-Control the agent's reasoning depth:
-
-```bash
-$ stepi --thinking high complex-task.md    # Deep reasoning for complex problems
-$ stepi --thinking low simple-task.md      # Quick responses for simple tasks
-```
-
-### Google Search with Gemini
+## Google Search with Gemini
 
 Real-time information retrieval using Google's Gemini AI:
 
@@ -86,7 +80,7 @@ Get your Gemini API key from: https://makersuite.google.com/app/apikey
 
 Download the latest release for your system:
 
-https://github.com/refaktor/stepi/releases/tag/v0.2
+**https://github.com/refaktor/stepi/releases/**
 
 Or build from source:
 
@@ -105,17 +99,6 @@ GEMINI_API_KEY=...              # Required for Gemini models and google command
 STEPI_MODEL=claude-sonnet-4     # Default model
 STEPI_THINKING=medium           # Default thinking level
 ```
-
-## Why Stepi?
-
-- **File-based**: All inputs and outputs are files - no information lost in UIs
-- **Automation-friendly**: Easy to integrate into scripts and workflows
-- **Persistent**: Context and history preserved across sessions
-- **Unix philosophy**: Compose with pipes, scripts, and other tools
-- **Cost-conscious**: Track and analyze LLM usage costs
-- **Multi-provider**: Use the best model for each task
-
-Perfect for developers who prefer terminal workflows and want full control over their AI coding assistant interactions.
 
 ----
 
@@ -189,3 +172,83 @@ stepi summarize .stepi/task
 # continue from where you were interrupted
 echo "I asked you to do {IN-1} but interrupted you to say, don't do X, just Y. Here is where you were at {LOG-1}. Continue" |stepi -name .stepi/task04 
 ```
+
+# CLI options
+
+```
+stepi - Minimal file-based LLM coding agent
+
+Primary Usage:
+  stepi [options] <input.md>              # Auto-generates <input>.out.md
+  echo "prompt" | stepi [options]         # Pipe mode (output to stdout)
+  echo "prompt" | stepi --name <name>     # Pipe mode (saves to <name>.md, generates <name>.out.md, etc.)
+  stepi --session <name> [options]        # Multi-turn session mode
+
+Legacy Usage:
+  stepi [options] <input.md> <output.md>  # Explicit output (deprecated)
+
+Commands:
+  stepi list                              # List stepi files with metadata
+  stepi models                            # Show available providers and models
+  stepi google [--model <model>] [--name <name>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
+  stepi io [options]                      # I/O operations
+  stepi step [options]                    # Step-by-step execution
+  stepi init                              # Initialize .stepi folder in current directory
+  stepi summarize <name>                  # Generate summary of all files with given name
+
+Options:
+  --model <id>            Model ID (default: claude-sonnet-4-20250514)
+  --provider <name>       LLM provider: anthropic, openai, gemini (auto-detected if not specified)
+  --thinking <level>      Thinking level: off, low, medium, high (default: off)
+  --fullcoms              Save full communication log to <output>.fullcoms.md
+                          (Not available in session or pipe mode)
+  --session <name>        Use existing session for multi-turn conversation
+  --session-start <name>  Start a new session
+  --session-end <name>    End (delete) a session
+  --name <name>           Name for file when using pipe input (creates <name>.md and auxiliary files)
+  --readprev              Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md and .stepi/stepXX.log)
+  --silent                Suppress tool output and edit details
+  --profile <name>        Use a named profile for system prompt and tool descriptions.
+                          Looks for profiles/<name>/ in: .stepi/profiles/, ~/.config/stepi/profiles/, profiles/
+                          Copy profiles/default/ to profiles/<name>/ and edit to customise.
+  -h, --help              Show this help
+
+Environment Variables:
+  ANTHROPIC_API_KEY    Anthropic API key (required for Anthropic models)
+  OPENAI_API_KEY       OpenAI API key (required for OpenAI/Codex models)
+  GEMINI_API_KEY       Gemini API key (required for Gemini models and google command)
+  STEPI_MODEL          Default model
+  STEPI_PROVIDER       Default provider
+  STEPI_THINKING       Default thinking level
+  OPENAI_TEMPERATURE   OpenAI temperature (0.0-2.0)
+  OPENAI_TOP_P         OpenAI top_p (0.0-1.0)
+
+Examples:
+  stepi prompt.md                        # Auto-generates prompt.out.md
+  stepi stepi_some_01.md                 # Auto-generates stepi_some_01.out.md
+  stepi --model claude-3-5-haiku-20241022 input.md
+  stepi --model gpt-4 input.md           # Use OpenAI GPT-4
+  stepi --model code-davinci-002 input.md # Use OpenAI Codex
+  stepi --provider openai --model gpt-3.5-turbo input.md
+  stepi --thinking high complex-task.md
+  stepi --fullcoms task.md               # Also saves task.out.fullcoms.md
+  echo "What is 2+2?" | stepi            # Pipe mode (output to stdout)
+  echo "Analyze this code" | stepi --name analysis # Creates analysis.md, analysis.out.md, etc.
+  stepi list                             # Show all stepi projects
+  stepi init                             # Initialize .stepi folder
+  stepi summarize myproject              # Generate summary of myproject files
+
+Session examples:
+  stepi --session-start myproject        # Start session
+  echo "Read main.go" | stepi --session myproject
+  echo "Explain it" | stepi --session myproject
+  stepi --session-end myproject          # End session
+
+File naming (simplified):
+  Input: file.md generates:
+  - file.out.md     (main output)
+  - file.chatter    (LLM communication log)
+  - file.cmds       (tool commands log)
+  - file.log        (execution log)
+  - file.cost.csv   (cost tracking)
+``
