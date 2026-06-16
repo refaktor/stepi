@@ -108,7 +108,7 @@ STEPI_THINKING=medium           # Default thinking level
 When you create a step you can now refer to previous input, output or log files by these:
 
 ```bash
-$ ( git diff && echo "analyze the diff above and describe the changes being made" | stepi -name .stepi/diff01
+$ ( git diff && echo "analyze the diff above and describe the changes being made" ) | stepi -name .stepi/diff01
 
 $ echo "read {OUT-1} and check if any changes are critical or introduce risk" | stepi -name .stepi/diff02
 
@@ -181,8 +181,7 @@ Primary Usage:
   stepi [options] <input.md>              # Auto-generates <input>.out.md
   echo "prompt" | stepi [options]         # Pipe mode (output to stdout)
   echo "prompt" | stepi --name <name>     # Pipe mode (saves to <name>.md, generates <name>.out.md, etc.)
-  stepi --session <name> [options]        # Multi-turn session mode
-
+  
 Legacy Usage:
   stepi [options] <input.md> <output.md>  # Explicit output (deprecated)
 
@@ -201,9 +200,6 @@ Options:
   --thinking <level>      Thinking level: off, low, medium, high (default: off)
   --fullcoms              Save full communication log to <output>.fullcoms.md
                           (Not available in session or pipe mode)
-  --session <name>        Use existing session for multi-turn conversation
-  --session-start <name>  Start a new session
-  --session-end <name>    End (delete) a session
   --name <name>           Name for file when using pipe input (creates <name>.md and auxiliary files)
   --readprev              Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md and .stepi/stepXX.log)
   --silent                Suppress tool output and edit details
@@ -237,12 +233,6 @@ Examples:
   stepi init                             # Initialize .stepi folder
   stepi summarize myproject              # Generate summary of myproject files
 
-Session examples:
-  stepi --session-start myproject        # Start session
-  echo "Read main.go" | stepi --session myproject
-  echo "Explain it" | stepi --session myproject
-  stepi --session-end myproject          # End session
-
 File naming (simplified):
   Input: file.md generates:
   - file.out.md     (main output)
@@ -250,4 +240,4 @@ File naming (simplified):
   - file.cmds       (tool commands log)
   - file.log        (execution log)
   - file.cost.csv   (cost tracking)
-``
+```
