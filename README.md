@@ -9,12 +9,13 @@ A streamlined coding agent that works with files and pipes instead of complex UI
 ## Why Stepi?
 
 - **File-based**: All inputs and outputs are files - no information lost in UIs
-- **Just shell**: No new keybinding to learn, just use cat, echo, ls, grep ...
+- **Just shell**: No new keybindings and TUI UX inventions to learn. Just use cat, echo, ls ...
 - **Automation-friendly**: Easy to integrate into scripts and workflows
 - **Persistent**: Context and history preserved across sessions
 - **Unix philosophy**: Compose with pipes, scripts, and other tools
 - **Cost-conscious**: Track and analyze LLM usage costs
 - **Multi-provider**: Use the best model for each task
+- **Customizable**: Change the prompts that stepi uses, create multiple profiles
 
 Perfect for developers who prefer terminal workflows and want full control over their AI coding assistant interactions.
 
