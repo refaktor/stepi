@@ -70,15 +70,6 @@ $ stepi --thinking high complex-task.md    # Deep reasoning for complex problems
 $ stepi --thinking low simple-task.md      # Quick responses for simple tasks
 ```
 
-### Tool Integration
-
-The agent is derived from Pi coding agend and has access to:
-
-- **read**: Read any file in your project
-- **write**: Create or overwrite files  
-- **edit**: Make precise surgical edits
-- **bash**: Execute shell commands
-
 ### Google Search with Gemini
 
 Real-time information retrieval using Google's Gemini AI:
@@ -86,17 +77,18 @@ Real-time information retrieval using Google's Gemini AI:
 ```bash
 $ export GEMINI_API_KEY=your_api_key
 $ stepi google "latest developments in AI"                    # Default model (pro)
-$ stepi google --model gemini-1.5-flash "quick question"     # Faster model
 $ stepi google --help                                         # Show detailed help
 ```
 
 Get your Gemini API key from: https://makersuite.google.com/app/apikey
 
-### Cost Tracking & Management
+## Get & Install
 
-**TODO** Automatic cost tracking with analysis tools:
+Download the latest release for your system:
 
-## Build & Install
+https://github.com/refaktor/stepi/releases/tag/v0.2
+
+Or build from source:
 
 ```bash
 # Build from source (requires Go)
