@@ -41,8 +41,7 @@ $ stepi google "what are the top tech news of today?"
 On bigger project we usually create a .stepi folder.
 
 ```bash
-$ cd another-project
-$ export ANTHROPIC_API_KEY=sk-...........
+$ cd my-project
 
 # create a .stepi/ folder
 $ stepi init
@@ -60,7 +59,7 @@ $ stepi .stepi/task01.md
 # * .stepi/task01.chatter -- log of raw communication with llm model
 
 # Pipe mode with file saving
-$ echo "create a README for this project" | stepi --name .stepi/task02
+$ echo "use {OUT-1} and create a README for this project" | stepi --name .stepi/task02
 # creates .stepi/task02.md , .stepi/task02.out.md and other files
 ```
 
