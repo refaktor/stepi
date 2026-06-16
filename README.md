@@ -16,7 +16,7 @@ $ export ANTHROPIC_API_KEY=sk-...........
 
 # Basic file mode - auto-generates output
 $ echo "analyze the code in this project" > task.md
-$ stepi task.md                    # Creates task.out.md and additional logs
+$ stepi task.md                    # Creates task.out.md and additional files
 
 # Pipe mode for quick tasks
 $ echo "what are the main files here?" | stepi
@@ -70,15 +70,6 @@ $ stepi --thinking high complex-task.md    # Deep reasoning for complex problems
 $ stepi --thinking low simple-task.md      # Quick responses for simple tasks
 ```
 
-### Tool Integration
-
-The agent is derived from Pi coding agend and has access to:
-
-- **read**: Read any file in your project
-- **write**: Create or overwrite files  
-- **edit**: Make precise surgical edits
-- **bash**: Execute shell commands
-
 ### Google Search with Gemini
 
 Real-time information retrieval using Google's Gemini AI:
@@ -86,17 +77,18 @@ Real-time information retrieval using Google's Gemini AI:
 ```bash
 $ export GEMINI_API_KEY=your_api_key
 $ stepi google "latest developments in AI"                    # Default model (pro)
-$ stepi google --model gemini-1.5-flash "quick question"     # Faster model
 $ stepi google --help                                         # Show detailed help
 ```
 
 Get your Gemini API key from: https://makersuite.google.com/app/apikey
 
-### Cost Tracking & Management
+## Get & Install
 
-**TODO** Automatic cost tracking with analysis tools:
+Download the latest release for your system:
 
-## Build & Install
+https://github.com/refaktor/stepi/releases/tag/v0.2
+
+Or build from source:
 
 ```bash
 # Build from source (requires Go)
@@ -134,15 +126,25 @@ Perfect for developers who prefer terminal workflows and want full control over 
 When you create a step you can now refer to previous input, output or log files by these:
 
 ```bash
-$ cat > .stepi/analysis01.md
-analyze the current project and report it's main parts, modules and dependencies
-(ctrl-c)
-$ stepi .stepi/analysis01
-... does the work ...
-$ echo "read the analysis of the project from {OUT-1} and for each part determine how needed of code review it is" | stepi -name .stepi/analysis02
-... does the work ... 
-$ echo "read {OUT01:02} and find potential bugs in the most critical module found, report what you are doing" | stepi -name .stepi/analysis03
+$ ( git diff && echo "analyze the diff above and describe the changes being made" | stepi -name .stepi/diff01
+
+$ echo "read {OUT-1} and check if any changes are critical or introduce risk" | stepi -name .stepi/diff02
+
+$ echo "add tests for changes described in files: {OUT01:02} " | stepi -name .stepi/diff03
 ```
+
+| Variable | Example result | Notes |
+|----------|---------------|-------|
+| `{STEP}` | `03` | Current step, zero-padded |
+| `{IN-1}` | `sometask02.md` | Input file N steps back |
+| `{OUT-1}` | `sometask02.out.md` | Output file N steps back |
+| `{LOG-1}` | `sometask02.log` | Log file N steps back |
+| `{IN-2}`, `{OUT-2}`, … | — | Any N ≥ 1 |
+| `{IN01:03}` | `sometask01.md`<br>`sometask02.md`<br>`sometask03.md` | Range of input files |
+| `{OUT02:04}` | — | Range of output files |
+| `{LOG03:04}` | — | Range of log files |
+
+
 ## PROFILES
 
 Experimental: all the texts for communicating with llm-s was extracted to profiles/default/* . You can make your ownd profiles/ subfolder and tune them and then run the agent with your profile
@@ -165,8 +167,25 @@ Search for and provide current information about: {QUERY}
 Please provide up-to-date information and summarize it to 5 lines.
 (ctrl-c)
 
-$ stepi  google "what is ryelang and does it make any sense to learn it" --profile short
-...
-... result in 5 lines
-...
+$ stepi google -profile short "what is ryelang and does it make any sense to learn it"
+... result in 5 lines ...
+```
+
+# Cookbook
+
+Just some useful oneliners / examples:
+
+```bash
+# see the tasks you were working on on current project
+ls -ltr .stepi
+
+# find a particular keyword you were working on
+grep -r "multilang" .stepi
+
+# summarize a task with multiple steps
+stepi summarize .stepi/task
+# summary is written to .stepi/task.sum.md
+
+# continue from where you were interrupted
+echo "I asked you to do {IN-1} but interrupted you to say, don't do X, just Y. Here is where you were at {LOG-1}. Continue" |stepi -name .stepi/task04 
 ```
