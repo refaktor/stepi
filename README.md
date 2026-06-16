@@ -11,7 +11,7 @@ A streamlined coding agent that works with files and pipes instead of complex UI
 - **File-based**: All inputs and outputs are files - no information lost in UIs
 - **Just shell**: No new keybindings and TUI UX inventions to learn. Just use cat, echo, ls ...
 - **Automation-friendly**: Easy to integrate into scripts and workflows
-- **Persistent**: Context and history preserved across sessions
+- **Persistent**: All history is fully preserved and managable. It's just files
 - **Unix philosophy**: Compose with pipes, scripts, and other tools
 - **Cost-conscious**: Track and analyze LLM usage costs
 - **Multi-provider**: Use the best model for each task
