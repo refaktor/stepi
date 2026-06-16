@@ -124,3 +124,49 @@ STEPI_THINKING=medium           # Default thinking level
 - **Multi-provider**: Use the best model for each task
 
 Perfect for developers who prefer terminal workflows and want full control over their AI coding assistant interactions.
+
+----
+
+# Advanced usage
+
+## VARIABLES
+
+When you create a step you can now refer to previous input, output or log files by these:
+
+```bash
+$ cat > .stepi/analysis01.md
+analyze the current project and report it's main parts, modules and dependencies
+(ctrl-c)
+$ stepi .stepi/analysis01
+... does the work ...
+$ echo "read the analysis of the project from {OUT-1} and for each part determine how needed of code review it is" | stepi -name .stepi/analysis02
+... does the work ... 
+$ echo "read {OUT01:02} and find potential bugs in the most critical module found, report what you are doing" | stepi -name .stepi/analysis03
+```
+## PROFILES
+
+Experimental: all the texts for communicating with llm-s was extracted to profiles/default/* . You can make your ownd profiles/ subfolder and tune them and then run the agent with your profile
+
+```bash
+$ cd profiles
+
+$ cp -r default short
+
+# look at the search prompt of default profile
+$ cat profiles/default/search_prompt.md 
+Search for and provide current information about: {QUERY}
+
+Please provide comprehensive, up-to-date information with specific details and context.
+
+# set a different prompt for out short profile
+$ cat > short/search_prompt.md
+Search for and provide current information about: {QUERY}
+
+Please provide up-to-date information and summarize it to 5 lines.
+(ctrl-c)
+
+$ stepi  google "what is ryelang and does it make any sense to learn it" --profile short
+...
+... result in 5 lines
+...
+```
