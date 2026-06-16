@@ -152,15 +152,11 @@ $ cd profiles
 
 $ cp -r default short
 
-$ cat default/search_query.md
-
-# look what is the default profile
 $ cat profiles/default/search_prompt.md 
 Search for and provide current information about: {QUERY}
 
 Please provide comprehensive, up-to-date information with specific details and context.
 
-# now we update our short profile template for search  
 $ cat > short/search_prompt.md
 Search for and provide current information about: {QUERY}
 
