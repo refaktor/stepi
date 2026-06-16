@@ -154,6 +154,6 @@ Search for and provide current information about: {QUERY}
 Please provide up-to-date information and summarize it to 5 lines.
 (ctrl-c)
 
-$ stepi  google "what is ryelang and does it make any sense to learn it" --profile short
+$ stepi google -profile short "what is ryelang and does it make any sense to learn it"
 ... result in 5 lines ...
 ```
