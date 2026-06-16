@@ -1,8 +1,28 @@
+# Build artifacts
+stepi
+stepi-colored
+stepi-server
+cmd/server/stepi-server
+dist/
+
+# Test/session output files
 stepi_*.md*
 test_*.md*
 ryelang_*.md*
+stepi*.csv
+*.cost.csv
+*.chatter
+*.cmds
+*.log
+*.out.md
+
+# Upload directory (server)
+cmd/server/uploads/
+
+# Editor / OS
 #*
 *~
-stepi*.csv
-stepi
+.DS_Store
+
+# Sandbox
 sandbox
