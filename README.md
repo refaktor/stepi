@@ -127,7 +127,7 @@ Perfect for developers who prefer terminal workflows and want full control over 
 
 ----
 
-# Advanced usage patters
+# Advanced usage
 
 ## VARIABLES
 
