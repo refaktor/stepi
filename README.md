@@ -126,14 +126,11 @@ Perfect for developers who prefer terminal workflows and want full control over 
 When you create a step you can now refer to previous input, output or log files by these:
 
 ```bash
-$ cat > .stepi/analysis01.md
-analyze the current project and report its main parts, modules and dependencies
-(ctrl-c)
-$ stepi .stepi/analysis01
-... does the work ...
-$ echo "read the analysis of the project from {OUT-1} and for each part determine how needed of code review it is" | stepi -name .stepi/analysis02
-... does the work ... 
-$ echo "read {OUT01:02} and find potential bugs in the most critical module found, report what you are doing" | stepi -name .stepi/analysis03
+$ ( git diff && echo "analyze the diff above and describe the changes being made" | stepi -name .stepi/diff01
+
+$ echo "read {OUT-1} and check if any changes are critical or introduce risk" | stepi -name .stepi/diff02
+
+$ echo "add tests for changes described in files: {OUT01:02} " | stepi -name .stepi/diff03
 ```
 ## PROFILES
 
