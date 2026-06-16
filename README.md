@@ -133,7 +133,7 @@ Perfect for developers who prefer terminal workflows and want full control over 
 
 When you create a step you can now refer to previous input, output or log files by these:
 
-```
+```bash
 $ cat > .stepi/analysis01.md
 analyze the current project and report it's main parts, modules and dependencies
 (ctrl-c)
@@ -147,7 +147,7 @@ $ echo "read {OUT01:02} and find potential bugs in the most critical module foun
 
 Experimental: all the texts for communicating with llm-s was extracted to profiles/default/* . You can make your ownd profiles/ subfolder and tune them and then run the agent with your profile
 
-```
+```bash
 $ cd profiles
 
 $ cp -r default short
