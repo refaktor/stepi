@@ -19,8 +19,10 @@ const (
 
 // BashTool executes shell commands
 type BashTool struct {
-	Cwd    string
-	Silent bool
+	Cwd         string
+	Silent      bool
+	// Desc overrides the default tool description when non-empty (set from a profile).
+	Desc string
 }
 
 func (t *BashTool) Name() string {
@@ -28,6 +30,9 @@ func (t *BashTool) Name() string {
 }
 
 func (t *BashTool) Description() string {
+	if t.Desc != "" {
+		return t.Desc
+	}
 	return "Execute a bash command in the current working directory. Returns stdout and stderr. Output is truncated to last 50KB. Optionally provide a timeout in seconds."
 }
 

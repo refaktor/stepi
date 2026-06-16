@@ -31,6 +31,8 @@ func max(a, b int) int {
 type EditTool struct {
 	Cwd    string
 	Silent bool
+	// Desc overrides the default tool description when non-empty (set from a profile).
+	Desc string
 }
 
 func (t *EditTool) Name() string {
@@ -38,6 +40,9 @@ func (t *EditTool) Name() string {
 }
 
 func (t *EditTool) Description() string {
+	if t.Desc != "" {
+		return t.Desc
+	}
 	return "Edit a file by replacing exact text. The oldText must match exactly (including whitespace). Use this for precise, surgical edits."
 }
 

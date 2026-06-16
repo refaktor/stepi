@@ -15,6 +15,8 @@ import (
 type WriteTool struct {
 	Cwd    string
 	Silent bool
+	// Desc overrides the default tool description when non-empty (set from a profile).
+	Desc string
 }
 
 func (t *WriteTool) Name() string {
@@ -22,6 +24,9 @@ func (t *WriteTool) Name() string {
 }
 
 func (t *WriteTool) Description() string {
+	if t.Desc != "" {
+		return t.Desc
+	}
 	return "Write content to a file. Creates the file if it doesn't exist, overwrites if it does. Automatically creates parent directories."
 }
 

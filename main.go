@@ -18,6 +18,7 @@ import (
 	"github.com/user/stepi/colors"
 	"github.com/user/stepi/config"
 	"github.com/user/stepi/logging"
+	"github.com/user/stepi/profile"
 	"github.com/user/stepi/prompt"
 	"github.com/user/stepi/providers"
 	"github.com/user/stepi/session"
@@ -62,8 +63,9 @@ func parseStepNumber(s string) int {
 	return 0
 }
 
-// generateReadPrevPrefix generates the prefix instruction for reading previous step files
-func generateReadPrevPrefix(currentFile, nameFlag string) string {
+// generateReadPrevPrefix generates the prefix instruction for reading previous step files.
+// It uses the profile's ReadPrev template, substituting the three placeholders.
+func generateReadPrevPrefix(currentFile, nameFlag string, prof *profile.Profile) string {
 	var currentStep int
 	var stepDir string
 	
@@ -88,11 +90,12 @@ func generateReadPrevPrefix(currentFile, nameFlag string) string {
 	prevStep := currentStep - 1
 	prevStepStr := fmt.Sprintf("%02d", prevStep)
 	
-	var prefix string
+	var prevInput, prevOutput, prevLog string
 	if stepDir != "" {
 		// .stepi directory format
-		prefix = fmt.Sprintf("Read what was the goal previously in %sstep%s.md and what you did previously by looking at files %sstep%s.out.md and %sstep%s.log\n\n",
-			stepDir, prevStepStr, stepDir, prevStepStr, stepDir, prevStepStr)
+		prevInput  = fmt.Sprintf("%sstep%s.md",     stepDir, prevStepStr)
+		prevOutput = fmt.Sprintf("%sstep%s.out.md", stepDir, prevStepStr)
+		prevLog    = fmt.Sprintf("%sstep%s.log",    stepDir, prevStepStr)
 	} else {
 		// Generic format - extract base name pattern
 		var baseName string
@@ -101,14 +104,15 @@ func generateReadPrevPrefix(currentFile, nameFlag string) string {
 		} else if nameFlag != "" {
 			baseName = strings.TrimSuffix(nameFlag, fmt.Sprintf("%02d", currentStep))
 		}
-		
-		if baseName != "" {
-			prefix = fmt.Sprintf("Read what was the goal previously in %s%s.md and what you did previously by looking at files %s%s.out.md and %s%s.log\n\n",
-				baseName, prevStepStr, baseName, prevStepStr, baseName, prevStepStr)
+		if baseName == "" {
+			return ""
 		}
+		prevInput  = fmt.Sprintf("%s%s.md",     baseName, prevStepStr)
+		prevOutput = fmt.Sprintf("%s%s.out.md", baseName, prevStepStr)
+		prevLog    = fmt.Sprintf("%s%s.log",    baseName, prevStepStr)
 	}
 	
-	return prefix
+	return prof.ExpandReadPrev(prevInput, prevOutput, prevLog)
 }
 
 // isPiped returns true if stdin is piped (not a terminal)
@@ -166,6 +170,7 @@ func main() {
 	name := flag.String("name", "", "Name for file when using pipe input (creates <name>.md and generates <name>.out.md, etc.)")
 	readprev := flag.Bool("readprev", false, "Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md)")
 	silent := flag.Bool("silent", false, "Suppress tool output and edit details")
+	profileName := flag.String("profile", "", "Profile name: load templates from profiles/<name>/ (default: built-in defaults)")
 	help := flag.Bool("help", false, "Show help")
 	flag.BoolVar(help, "h", false, "Show help")
 
@@ -202,6 +207,9 @@ Options:
   --name <name>           Name for file when using pipe input (creates <name>.md and auxiliary files)
   --readprev              Prepend instruction to read previous step files (.stepi/stepXX.md and .stepi/stepXX.out.md and .stepi/stepXX.log)
   --silent                Suppress tool output and edit details
+  --profile <name>        Use a named profile for system prompt and tool descriptions.
+                          Looks for profiles/<name>/ in: .stepi/profiles/, ~/.config/stepi/profiles/, profiles/
+                          Copy profiles/default/ to profiles/<name>/ and edit to customise.
   -h, --help              Show this help
 
 Environment Variables:
@@ -290,7 +298,12 @@ File naming (simplified):
 		}
 		
 		cwd, _ := os.Getwd()
-		systemPrompt := prompt.Build(cwd)
+		sessionProf, profErr := profile.Load(*profileName)
+		if profErr != nil {
+			fmt.Fprintf(os.Stderr, "Error loading profile %q: %v\n", *profileName, profErr)
+			os.Exit(1)
+		}
+		systemPrompt := prompt.BuildWithPrompt(cwd, sessionProf.SystemPrompt)
 		if err := session.Create(*sessionStart, systemPrompt, sessionCfg.Model); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -453,9 +466,16 @@ File naming (simplified):
 		os.Exit(1)
 	}
 
+	// Load profile (after flags are parsed so *profileName is available)
+	prof, err := profile.Load(*profileName)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error loading profile %q: %v\n", *profileName, err)
+		os.Exit(1)
+	}
+
 	// Apply readprev prefix if flag is set
 	if *readprev {
-		prefix := generateReadPrevPrefix(inputFile, *name)
+		prefix := generateReadPrevPrefix(inputFile, *name, prof)
 		if prefix != "" {
 			inputStr = prefix + inputStr
 		}
@@ -497,15 +517,15 @@ File naming (simplified):
 		os.Exit(1)
 	}
 
-	// Build system prompt
-	systemPrompt := prompt.Build(cwd)
+	// Build system prompt using the profile's system prompt template
+	systemPrompt := prompt.BuildWithPrompt(cwd, prof.SystemPrompt)
 
-	// Create tools
+	// Create tools, injecting per-profile descriptions
 	agentTools := []agent.Tool{
-		&tools.ReadTool{Cwd: cwd, Silent: cfg.Silent},
-		&tools.WriteTool{Cwd: cwd, Silent: cfg.Silent},
-		&tools.EditTool{Cwd: cwd, Silent: cfg.Silent},
-		&tools.BashTool{Cwd: cwd, Silent: cfg.Silent},
+		&tools.ReadTool{Cwd: cwd, Silent: cfg.Silent, Desc: prof.ToolRead},
+		&tools.WriteTool{Cwd: cwd, Silent: cfg.Silent, Desc: prof.ToolWrite},
+		&tools.EditTool{Cwd: cwd, Silent: cfg.Silent, Desc: prof.ToolEdit},
+		&tools.BashTool{Cwd: cwd, Silent: cfg.Silent, Desc: prof.ToolBash},
 	}
 
 	// Setup context with signal handling
@@ -1244,6 +1264,7 @@ func handleGoogleCommand(args []string) {
 	// Parse google command flags
 	model := "gemini-3-flash-preview" // Default to newest model with best search capabilities
 	var nameFlag string
+	var profileName string
 	var query string
 	
 	// Simple argument parsing for google command
@@ -1256,6 +1277,10 @@ func handleGoogleCommand(args []string) {
 		} else if args[i] == "--name" && i+1 < len(args) {
 			nameFlag = args[i+1]
 			// Remove name flag and its value from args
+			args = append(args[:i], args[i+2:]...)
+		} else if args[i] == "--profile" && i+1 < len(args) {
+			profileName = args[i+1]
+			// Remove profile flag and its value from args
 			args = append(args[:i], args[i+2:]...)
 		} else {
 			i++
@@ -1312,8 +1337,14 @@ func handleGoogleCommand(args []string) {
 		os.Exit(1)
 	}
 
-	// Create search prompt optimized for Google Search grounding
-	searchPrompt := fmt.Sprintf("Search for and provide current information about: %s\n\nPlease provide comprehensive, up-to-date information with specific details and context.", query)
+	// Load profile to get the search prompt template
+	googleProf, profErr := profile.Load(profileName)
+	if profErr != nil {
+		fmt.Fprintf(os.Stderr, "Error loading profile %q: %v\n", profileName, profErr)
+		os.Exit(1)
+	}
+	// Build search prompt from the profile template
+	searchPrompt := googleProf.ExpandSearchPrompt(query)
 
 	// Set parameters for search queries
 	maxTokens := 4096

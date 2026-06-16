@@ -23,12 +23,25 @@ Guidelines:
 - Be concise in your responses
 - Show file paths clearly when working with files`
 
-// Build constructs the system prompt, loading AGENTS.md if present
+// Build constructs the system prompt using the built-in base prompt,
+// loading AGENTS.md if present. Use BuildWithPrompt to supply a custom
+// system prompt from a profile.
 func Build(cwd string) string {
+	return BuildWithPrompt(cwd, basePrompt)
+}
+
+// BuildWithPrompt constructs the system prompt from the given systemPrompt
+// string, then appends date/time, working directory, and AGENTS.md (if
+// present). Pass profile.Profile.SystemPrompt here when using a custom
+// profile; pass the empty string to use the built-in default.
+func BuildWithPrompt(cwd, systemPrompt string) string {
+	if systemPrompt == "" {
+		systemPrompt = basePrompt
+	}
+
 	var sb strings.Builder
 
-	// Add base prompt
-	sb.WriteString(basePrompt)
+	sb.WriteString(systemPrompt)
 	sb.WriteString("\n\n")
 
 	// Add date/time

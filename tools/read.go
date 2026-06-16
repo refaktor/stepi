@@ -19,6 +19,8 @@ const (
 type ReadTool struct {
 	Cwd    string
 	Silent bool
+	// Desc overrides the default tool description when non-empty (set from a profile).
+	Desc string
 }
 
 func (t *ReadTool) Name() string {
@@ -26,6 +28,9 @@ func (t *ReadTool) Name() string {
 }
 
 func (t *ReadTool) Description() string {
+	if t.Desc != "" {
+		return t.Desc
+	}
 	return "Read the contents of a file. Output is truncated to 2000 lines or 50KB (whichever is hit first). Use offset/limit for large files."
 }
 
