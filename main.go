@@ -148,6 +148,14 @@ func main() {
 			}
 			handleGoogleCommand(os.Args[2:])
 			return
+		case "kb":
+			if len(os.Args) < 3 {
+				fmt.Fprintln(os.Stderr, "Error: kb command requires a query argument")
+				fmt.Fprintln(os.Stderr, "Usage: stepi kb \"your question here\"")
+				os.Exit(1)
+			}
+			handleKBCommand(os.Args[2:])
+			return
 		case "summarize":
 			if len(os.Args) < 3 {
 				fmt.Fprintln(os.Stderr, "Error: summarize command requires a name argument")
@@ -190,6 +198,7 @@ Commands:
   stepi list                              # List stepi files with metadata
   stepi models                            # Show available providers and models
   stepi google [--model <model>] [--name <name>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
+  stepi kb [--model <model>] [--name <name>] "question"           # Query local knowledge base in .stepi/KB/ (grep-based search over .md files)
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
   stepi init                              # Initialize .stepi folder in current directory
@@ -1226,6 +1235,225 @@ func generateUnifiedCostsCSV() {
 	}
 
 	fmt.Printf("Unified costs written to: %s\n", outputFile)
+}
+
+// handleKBCommand handles the `stepi kb <query>` command.
+// It runs the standard agent loop with KB-specific tools (kb_search, kb_read, kb_list)
+// pointed at the .stepi/KB/ directory, and loads the "kb" profile for the system prompt.
+func handleKBCommand(args []string) {
+	// Help flag
+	for _, arg := range args {
+		if arg == "--help" || arg == "-h" {
+			fmt.Println("stepi kb - Query a local knowledge base stored in .stepi/KB/")
+			fmt.Println()
+			fmt.Println("Usage:")
+			fmt.Println("  stepi kb [--model <model>] [--name <name>] \"your question here\"")
+			fmt.Println()
+			fmt.Println("Options:")
+			fmt.Println("  --model <model>    LLM model to use (default: auto-selected from env)")
+			fmt.Println("  --name <name>      Save output to <name>.out.md (with .chatter, .log, .cost.csv)")
+			fmt.Println("  --silent           Suppress tool call details")
+			fmt.Println()
+			fmt.Println("Knowledge Base:")
+			fmt.Println("  Documents live in .stepi/KB/ (relative to the current directory).")
+			fmt.Println("  Any .md, .txt, or .rst file in that directory is searchable.")
+			fmt.Println()
+			fmt.Println("Examples:")
+			fmt.Println("  stepi kb \"how does authentication work?\"")
+			fmt.Println("  stepi kb --model claude-3-5-haiku-20241022 \"what is the rate limit?\"")
+			fmt.Println("  stepi kb --name .stepi/kb01 \"deployment process\"")
+			fmt.Println()
+			fmt.Println("Setup:")
+			fmt.Println("  mkdir -p .stepi/KB")
+			fmt.Println("  cp docs/*.md .stepi/KB/")
+			fmt.Println("  stepi kb \"your question\"")
+			return
+		}
+	}
+
+	// Parse flags: --model, --name, --silent
+	var modelFlag, nameFlag string
+	silent := false
+	var queryParts []string
+
+	i := 0
+	for i < len(args) {
+		switch args[i] {
+		case "--model":
+			if i+1 < len(args) {
+				modelFlag = args[i+1]
+				i += 2
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --model requires a value")
+				os.Exit(1)
+			}
+		case "--name":
+			if i+1 < len(args) {
+				nameFlag = args[i+1]
+				i += 2
+			} else {
+				fmt.Fprintln(os.Stderr, "Error: --name requires a value")
+				os.Exit(1)
+			}
+		case "--silent":
+			silent = true
+			i++
+		default:
+			queryParts = append(queryParts, args[i])
+			i++
+		}
+	}
+
+	if len(queryParts) == 0 {
+		fmt.Fprintln(os.Stderr, "Error: no query provided")
+		fmt.Fprintln(os.Stderr, "Usage: stepi kb [--model <model>] [--name <name>] \"your question here\"")
+		os.Exit(1)
+	}
+	query := strings.Join(queryParts, " ")
+
+	// Find the KB directory: walk up from cwd looking for .stepi/KB
+	kbDir := findKBDir()
+	if kbDir == "" {
+		fmt.Fprintln(os.Stderr, "Error: .stepi/KB/ directory not found")
+		fmt.Fprintln(os.Stderr, "Create it with: mkdir -p .stepi/KB")
+		fmt.Fprintln(os.Stderr, "Then add .md files to it and re-run.")
+		os.Exit(1)
+	}
+
+	// Build provider config
+	providerCfg := config.FromEnvProvider()
+	if modelFlag != "" {
+		providerCfg.Model = modelFlag
+		providerCfg.Provider = providers.GetProviderForModel(modelFlag)
+	}
+
+	llmProvider, err := providers.NewProvider(providerCfg)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error creating provider: %v\n", err)
+		os.Exit(1)
+	}
+	if !llmProvider.ValidateModel(providerCfg.Model) {
+		fmt.Fprintf(os.Stderr, "Error: model '%s' is not supported by provider '%s'\n",
+			providerCfg.Model, llmProvider.Name())
+		os.Exit(1)
+	}
+
+	// Load the "kb" profile (falls back to built-in defaults if not found)
+	kbProf, profErr := profile.Load("kb")
+	if profErr != nil {
+		// kb profile is optional; use default
+		kbProf, _ = profile.Load("")
+	}
+
+	// Build system prompt (no cwd injection needed — KB mode is self-contained)
+	systemPrompt := kbProf.SystemPrompt
+
+	// KB-specific tools only — no bash/read/write/edit
+	cwd, _ := os.Getwd()
+	agentTools := []agent.Tool{
+		&tools.KBSearchTool{KBDir: kbDir, Silent: silent},
+		&tools.KBReadTool{KBDir: kbDir, Silent: silent},
+		&tools.KBListTool{KBDir: kbDir, Silent: silent},
+	}
+
+	// Agent config
+	cfg := config.FromEnv()
+	cfg.Model = providerCfg.Model
+	cfg.Silent = silent
+	cfg.CostTracking = true
+
+	// Logging / output file setup
+	var logBaseName string
+	var outputFile string
+	if nameFlag != "" {
+		logBaseName = nameFlag
+		outputFile = nameFlag + ".out.md"
+		cfg.LogFile = logBaseName
+	}
+
+	// Print info header
+	fmt.Fprintf(os.Stderr, colors.Info("Provider: %s\n"), llmProvider.Name())
+	fmt.Fprintf(os.Stderr, colors.Info("Model: %s\n"), cfg.Model)
+	fmt.Fprintf(os.Stderr, colors.Info("KB: %s\n"), kbDir)
+	if outputFile != "" {
+		fmt.Fprintf(os.Stderr, colors.Info("Output: %s\n"), outputFile)
+	}
+	fmt.Fprintln(os.Stderr, colors.Info("---"))
+
+	// Set up logger
+	var logger *logging.Logger
+	if logBaseName != "" {
+		logger, err = logging.NewLogger(logBaseName)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Warning: failed to create logger: %v\n", err)
+			logger = &logging.Logger{}
+		}
+		defer logger.Close()
+	} else {
+		logger = &logging.Logger{}
+	}
+
+	// Context with signal handling
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		<-sigCh
+		fmt.Fprintln(os.Stderr, "\nInterrupted")
+		cancel()
+	}()
+
+	// Run the agent
+	_ = cwd // suppress unused warning
+	result := agent.RunWithProvider(ctx, systemPrompt, query, agentTools, llmProvider, cfg, logger)
+
+	fmt.Fprintln(os.Stderr, "\n---")
+
+	if result.Error != nil {
+		fmt.Fprintf(os.Stderr, colors.Error("Error: %v\n"), result.Error)
+	}
+
+	// Write or print output
+	if outputFile != "" {
+		if err := os.WriteFile(outputFile, []byte(result.Response), 0644); err != nil {
+			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Fprintf(os.Stderr, colors.Success("Written to: %s\n"), outputFile)
+	} else {
+		fmt.Print(result.Response)
+	}
+
+	fmt.Fprintf(os.Stderr, colors.Info("Turns: %d | Tokens: %d in, %d out | "),
+		result.TotalTurns, result.Usage.InputTokens, result.Usage.OutputTokens)
+	fmt.Fprintf(os.Stderr, colors.Cost("Cost: $%.4f\n"), result.Usage.Cost)
+
+	if result.Error != nil {
+		os.Exit(1)
+	}
+}
+
+// findKBDir looks for .stepi/KB/ starting from the current directory and
+// walking up toward the filesystem root. Returns the found path or "".
+func findKBDir() string {
+	cwd, err := os.Getwd()
+	if err != nil {
+		return ""
+	}
+	dir := cwd
+	for {
+		candidate := filepath.Join(dir, ".stepi", "KB")
+		if info, err := os.Stat(candidate); err == nil && info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			break // reached filesystem root
+		}
+		dir = parent
+	}
+	return ""
 }
 
 // handleGoogleCommand handles the google search command
