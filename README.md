@@ -181,7 +181,8 @@ Primary Usage:
   stepi [options] <input.md>              # Auto-generates <input>.out.md
   echo "prompt" | stepi [options]         # Pipe mode (output to stdout)
   echo "prompt" | stepi --name <name>     # Pipe mode (saves to <name>.md, generates <name>.out.md, etc.)
-  
+  stepi --session <name> [options]        # Multi-turn session mode
+
 Legacy Usage:
   stepi [options] <input.md> <output.md>  # Explicit output (deprecated)
 
@@ -189,6 +190,7 @@ Commands:
   stepi list                              # List stepi files with metadata
   stepi models                            # Show available providers and models
   stepi google [--model <model>] [--name <name>] "question"       # Search using Gemini with Google Search grounding (supports --model gemini-3-flash-preview|gemini-3-pro-preview|gemini-2.5-pro|gemini-2.5-flash|gemini-2.0-flash|gemini-pro-latest|gemini-flash-latest)
+  stepi kb [--model <model>] [--name <name>] "question"           # Query local knowledge base in .stepi/KB/ (grep-based search over .md files)
   stepi io [options]                      # I/O operations
   stepi step [options]                    # Step-by-step execution
   stepi init                              # Initialize .stepi folder in current directory
