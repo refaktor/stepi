@@ -153,6 +153,19 @@ $ stepi google -profile short "what is ryelang and does it make any sense to lea
 ... result in 5 lines ...
 ```
 
+## Knowledge base
+
+First version, will improve:
+
+```bash
+# Setup
+$ mkdir .stepi/KB
+$ cp docs/*.md .stepi/KB/
+
+# Query (output to stdout)
+$ stepi kb "how does authentication for this project work?"
+```
+
 # Cookbook
 
 Just some useful oneliners / examples:
